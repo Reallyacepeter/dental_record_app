@@ -287,7 +287,7 @@ class _DentalImagesScreenState extends State<DentalImagesScreen> {
       'uploadedFiles': uploadedFiles,
     };
 
-    Navigator.pushNamed(context, '/dentalFindings', arguments: selectedData);
+    Navigator.pushNamed(context, '/supplementaryDetails', arguments: selectedData);
   }
 
   Future<void> _uploadFile() async {

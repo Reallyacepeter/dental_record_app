@@ -23,3 +23,4 @@ plugins {
 }
 
 include(":app")
+rootProject.name = "dental_record_app"
