@@ -55,8 +55,8 @@ plugins {
 
 android {
     namespace = "com.example.dental_record_app" // 실제 앱 패키지 이름으로 변경
-    compileSdk = 34
-    buildToolsVersion = "34.0.0" // 명시적으로 설정
+    compileSdk = 35
+    buildToolsVersion = "35.0.0" // 명시적으로 설정
 
 
     compileOptions {
@@ -72,7 +72,7 @@ android {
         applicationId = "com.example.dental_record_app" // 실제 앱 패키지 이름으로 변경
 
         minSdk = 23
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
 

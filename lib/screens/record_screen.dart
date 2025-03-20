@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../widgets/common_app_bar.dart';
+import 'address_search_screen.dart'; // 주소 검색 화면 추가
 
 class RecordScreen extends StatefulWidget {
   @override
@@ -8,11 +9,26 @@ class RecordScreen extends StatefulWidget {
 
 class _RecordScreenState extends State<RecordScreen> {
   final TextEditingController placeController = TextEditingController();
-  final TextEditingController natureController = TextEditingController();
+  final TextEditingController customNatureController = TextEditingController(); // "Other" 선택 시 입력 필드
   final TextEditingController pmNoController = TextEditingController();
+
   DateTime? selectedDate;
-  String? selectedGender; // 성별 변수
-  final List<String> genderOptions = ['Male', 'Female', 'Other', 'Unknown']; // 성별 옵션
+  String? selectedGender;
+  String? selectedNature; // 재난 유형 선택 값
+
+  final List<String> genderOptions = ['Male', 'Female', 'Other', 'Unknown'];
+  final List<String> disasterTypes = [
+    "Earthquake", // 지진
+    "Flood", // 홍수
+    "Tsunami", // 쓰나미
+    "Wildfire", // 산불
+    "Hurricane / Typhoon", // 허리케인, 태풍
+    "Fire", // 화재
+    "Building Collapse", // 건물 붕괴
+    "Transportation Accident", // 교통사고
+    "Industrial / Chemical Accident", // 산업 / 화학사고
+    "Other" // 기타 (직접 입력)
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -24,15 +40,49 @@ class _RecordScreenState extends State<RecordScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TextField(
-                controller: placeController,
-                decoration: const InputDecoration(labelText: "Place of Disaster"),
+              GestureDetector(
+                onTap: _openAddressSearchScreen,
+                child: AbsorbPointer(
+                  child: TextField(
+                    controller: placeController,
+                    decoration: const InputDecoration(
+                      labelText: "Place of Disaster",
+                      suffixIcon: Icon(Icons.search),
+                    ),
+                  ),
+                ),
               ),
               const SizedBox(height: 8),
-              TextField(
-                controller: natureController,
+
+              // 🔹 "Nature of Disaster" 드롭다운 추가
+              DropdownButtonFormField<String>(
                 decoration: const InputDecoration(labelText: "Nature of Disaster"),
+                value: selectedNature,
+                items: disasterTypes.map((type) {
+                  return DropdownMenuItem(
+                    value: type,
+                    child: Text(type),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    selectedNature = value;
+                    if (value != "Other") {
+                      customNatureController.clear(); // "Other"가 아니면 입력 필드 초기화
+                    }
+                  });
+                },
               ),
+
+              // 🔹 "Other" 선택 시 입력 필드 활성화
+              if (selectedNature == "Other") ...[
+                const SizedBox(height: 8),
+                TextField(
+                  controller: customNatureController,
+                  decoration: const InputDecoration(labelText: "Specify Disaster Type"),
+                ),
+              ],
+
               const SizedBox(height: 8),
               TextField(
                 controller: pmNoController,
@@ -55,16 +105,12 @@ class _RecordScreenState extends State<RecordScreen> {
                 ],
               ),
               const SizedBox(height: 16),
+
               DropdownButtonFormField<String>(
-                decoration: const InputDecoration(
-                  labelText: "Select Gender",
-                ),
+                decoration: const InputDecoration(labelText: "Select Gender"),
                 value: selectedGender,
                 items: genderOptions.map((gender) {
-                  return DropdownMenuItem(
-                    value: gender,
-                    child: Text(gender),
-                  );
+                  return DropdownMenuItem(value: gender, child: Text(gender));
                 }).toList(),
                 onChanged: (value) {
                   setState(() {
@@ -73,6 +119,7 @@ class _RecordScreenState extends State<RecordScreen> {
                 },
               ),
               const SizedBox(height: 16),
+
               Center(
                 child: ElevatedButton(
                   onPressed: _goToMaterialsScreen,
@@ -86,9 +133,26 @@ class _RecordScreenState extends State<RecordScreen> {
     );
   }
 
+  void _openAddressSearchScreen() async {
+    final selectedAddress = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => AddressSearchScreen()),
+    );
+
+    if (selectedAddress != null && selectedAddress is String) {
+      setState(() {
+        placeController.text = selectedAddress;
+      });
+    }
+  }
+
   void _goToMaterialsScreen() {
+    String finalNature = selectedNature == "Other"
+        ? customNatureController.text
+        : selectedNature ?? "";
+
     if (placeController.text.isEmpty ||
-        natureController.text.isEmpty ||
+        finalNature.isEmpty ||
         pmNoController.text.isEmpty ||
         selectedDate == null ||
         selectedGender == null) {
@@ -100,7 +164,7 @@ class _RecordScreenState extends State<RecordScreen> {
 
     Navigator.pushNamed(context, '/materialsAvailable', arguments: {
       'place': placeController.text,
-      'nature': natureController.text,
+      'nature': finalNature,
       'pmNo': pmNoController.text,
       'date': selectedDate!.toIso8601String(),
       'gender': selectedGender.toString(),
