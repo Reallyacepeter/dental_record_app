@@ -1,6 +1,167 @@
+// import 'package:flutter/material.dart';
+// import '../widgets/common_app_bar.dart';
+// import 'address_search_screen.dart'; // 주소 검색 화면 추가
+// import 'package:provider/provider.dart';
+// import '../providers/dental_data_provider.dart';
+//
+// class RecordScreen extends StatefulWidget {
+//   @override
+//   _RecordScreenState createState() => _RecordScreenState();
+// }
+//
+// class _RecordScreenState extends State<RecordScreen> {
+//   final TextEditingController placeController = TextEditingController();
+//   final TextEditingController customNatureController = TextEditingController(); // "Other" 선택 시 입력 필드
+//   final TextEditingController pmNoController = TextEditingController();
+//
+//   DateTime? selectedDate;
+//   String? selectedGender;
+//   String? selectedNature; // 재난 유형 선택 값
+//
+//   final List<String> genderOptions = ['Male', 'Female', 'Other', 'Unknown'];
+//   final List<String> disasterTypes = [
+//     "Earthquake", // 지진
+//     "Flood", // 홍수
+//     "Tsunami", // 쓰나미
+//     "Wildfire", // 산불
+//     "Hurricane / Typhoon", // 허리케인, 태풍
+//     "Fire", // 화재
+//     "Building Collapse", // 건물 붕괴
+//     "Transportation Accident", // 교통사고
+//     "Industrial / Chemical Accident", // 산업 / 화학사고
+//     "Other" // 기타 (직접 입력)
+//   ];
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     final provider = Provider.of<DentalDataProvider>(context);
+//
+//     return Scaffold(
+//       appBar: CommonAppBar(title: "기록"),
+//       body: SingleChildScrollView(
+//         child: Padding(
+//           padding: const EdgeInsets.all(16.0),
+//           child: Column(
+//             crossAxisAlignment: CrossAxisAlignment.start,
+//             children: [
+//               GestureDetector(
+//                 onTap: () => _openAddressSearchScreen(context, provider),
+//                 child: AbsorbPointer(
+//                   child: TextField(
+//                     controller: TextEditingController(text: provider.placeOfDisaster),
+//                     decoration: const InputDecoration(
+//                       labelText: "Place of Disaster",
+//                       suffixIcon: Icon(Icons.search),
+//                     ),
+//                   ),
+//                 ),
+//               ),
+//               const SizedBox(height: 8),
+//
+//               // Nature Dropdown
+//               DropdownButtonFormField<String>(
+//                 value: provider.natureOfDisaster.isEmpty ? null : provider.natureOfDisaster,
+//                 decoration: const InputDecoration(labelText: "Nature of Disaster"),
+//                 items: disasterTypes.map((type) =>
+//                     DropdownMenuItem(value: type, child: Text(type))
+//                 ).toList(),
+//                 onChanged: (val) {
+//                   provider.updateNature(val ?? '');
+//                 },
+//               ),
+//
+//               const SizedBox(height: 8),
+//               TextField(
+//                 controller: TextEditingController(text: provider.pmNumber),
+//                 keyboardType: TextInputType.number,
+//                 decoration: const InputDecoration(labelText: "PM No"),
+//                 onChanged: provider.updatePmNumber,
+//               ),
+//
+//               const SizedBox(height: 8),
+//               Row(
+//                 children: [
+//                   Text(
+//                     provider.dateOfDisaster == null
+//                         ? "Date of Disaster: Not Selected"
+//                         : "Date: ${provider.dateOfDisaster!.toLocal().toString().split(' ')[0]}",
+//                   ),
+//                   const Spacer(),
+//                   ElevatedButton(
+//                     onPressed: () => _pickDate(context, provider),
+//                     child: const Text("Select Date"),
+//                   ),
+//                 ],
+//               ),
+//
+//               const SizedBox(height: 8),
+//               DropdownButtonFormField<String>(
+//                 value: provider.gender.isEmpty ? null : provider.gender,
+//                 decoration: const InputDecoration(labelText: "Select Gender"),
+//                 items: genderOptions.map((g) =>
+//                     DropdownMenuItem(value: g, child: Text(g))
+//                 ).toList(),
+//                 onChanged: (val) => provider.updateGender(val ?? ''),
+//               ),
+//
+//               const SizedBox(height: 16),
+//               Center(
+//                 child: ElevatedButton(
+//                   onPressed: () => _goToNext(context, provider),
+//                   child: const Text("다음"),
+//                 ),
+//               ),
+//             ],
+//           ),
+//         ),
+//       ),
+//     );
+//   }
+//
+//   void _openAddressSearchScreen(BuildContext context, DentalDataProvider provider) async {
+//     final result = await Navigator.push(
+//       context,
+//       MaterialPageRoute(builder: (_) => AddressSearchScreen()),
+//     );
+//
+//     if (result is String) {
+//       provider.updatePlace(result);
+//     }
+//   }
+//
+//   void _pickDate(BuildContext context, DentalDataProvider provider) async {
+//     final picked = await showDatePicker(
+//       context: context,
+//       initialDate: provider.dateOfDisaster ?? DateTime.now(),
+//       firstDate: DateTime(2000),
+//       lastDate: DateTime(2101),
+//     );
+//     if (picked != null) {
+//       provider.updateDisasterDate(picked);
+//     }
+//   }
+//
+//   void _goToNext(BuildContext context, DentalDataProvider provider) {
+//     if (provider.placeOfDisaster.isEmpty ||
+//         provider.natureOfDisaster.isEmpty ||
+//         provider.pmNumber.isEmpty ||
+//         provider.dateOfDisaster == null ||
+//         provider.gender.isEmpty) {
+//       ScaffoldMessenger.of(context).showSnackBar(
+//         const SnackBar(content: Text("모든 필드를 입력하세요.")),
+//       );
+//       return;
+//     }
+//     Navigator.pushReplacementNamed(context, '/materialsAvailable');
+//   }
+// }
+
 import 'package:flutter/material.dart';
 import '../widgets/common_app_bar.dart';
-import 'address_search_screen.dart'; // 주소 검색 화면 추가
+import 'address_search_screen.dart';
+import 'package:provider/provider.dart';
+import '../providers/dental_data_provider.dart';
+import '../widgets/custom_bottom_nav_bar.dart';
 
 class RecordScreen extends StatefulWidget {
   @override
@@ -9,29 +170,47 @@ class RecordScreen extends StatefulWidget {
 
 class _RecordScreenState extends State<RecordScreen> {
   final TextEditingController placeController = TextEditingController();
-  final TextEditingController customNatureController = TextEditingController(); // "Other" 선택 시 입력 필드
+  final TextEditingController customNatureController = TextEditingController();
   final TextEditingController pmNoController = TextEditingController();
 
   DateTime? selectedDate;
   String? selectedGender;
-  String? selectedNature; // 재난 유형 선택 값
+  String? selectedNature;
 
   final List<String> genderOptions = ['Male', 'Female', 'Other', 'Unknown'];
   final List<String> disasterTypes = [
-    "Earthquake", // 지진
-    "Flood", // 홍수
-    "Tsunami", // 쓰나미
-    "Wildfire", // 산불
-    "Hurricane / Typhoon", // 허리케인, 태풍
-    "Fire", // 화재
-    "Building Collapse", // 건물 붕괴
-    "Transportation Accident", // 교통사고
-    "Industrial / Chemical Accident", // 산업 / 화학사고
-    "Other" // 기타 (직접 입력)
+    "Earthquake",
+    "Flood",
+    "Tsunami",
+    "Wildfire",
+    "Hurricane / Typhoon",
+    "Fire",
+    "Building Collapse",
+    "Transportation Accident",
+    "Industrial / Chemical Accident",
+    "Other"
   ];
 
   @override
+  void initState() {
+    super.initState();
+    final provider = Provider.of<DentalDataProvider>(context, listen: false);
+    pmNoController.text = provider.pmNumber;
+    pmNoController.addListener(() {
+      provider.updatePmNumber(pmNoController.text);
+    });
+  }
+
+  @override
+  void dispose() {
+    pmNoController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final provider = Provider.of<DentalDataProvider>(context);
+
     return Scaffold(
       appBar: CommonAppBar(title: "기록"),
       body: SingleChildScrollView(
@@ -41,10 +220,10 @@ class _RecordScreenState extends State<RecordScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               GestureDetector(
-                onTap: _openAddressSearchScreen,
+                onTap: () => _openAddressSearchScreen(context, provider),
                 child: AbsorbPointer(
                   child: TextField(
-                    controller: placeController,
+                    controller: TextEditingController(text: provider.placeOfDisaster),
                     decoration: const InputDecoration(
                       labelText: "Place of Disaster",
                       suffixIcon: Icon(Icons.search),
@@ -54,34 +233,16 @@ class _RecordScreenState extends State<RecordScreen> {
               ),
               const SizedBox(height: 8),
 
-              // 🔹 "Nature of Disaster" 드롭다운 추가
               DropdownButtonFormField<String>(
+                value: provider.natureOfDisaster.isEmpty ? null : provider.natureOfDisaster,
                 decoration: const InputDecoration(labelText: "Nature of Disaster"),
-                value: selectedNature,
-                items: disasterTypes.map((type) {
-                  return DropdownMenuItem(
-                    value: type,
-                    child: Text(type),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    selectedNature = value;
-                    if (value != "Other") {
-                      customNatureController.clear(); // "Other"가 아니면 입력 필드 초기화
-                    }
-                  });
+                items: disasterTypes.map((type) =>
+                    DropdownMenuItem(value: type, child: Text(type))
+                ).toList(),
+                onChanged: (val) {
+                  provider.updateNature(val ?? '');
                 },
               ),
-
-              // 🔹 "Other" 선택 시 입력 필드 활성화
-              if (selectedNature == "Other") ...[
-                const SizedBox(height: 8),
-                TextField(
-                  controller: customNatureController,
-                  decoration: const InputDecoration(labelText: "Specify Disaster Type"),
-                ),
-              ],
 
               const SizedBox(height: 8),
               TextField(
@@ -89,40 +250,37 @@ class _RecordScreenState extends State<RecordScreen> {
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(labelText: "PM No"),
               ),
+
               const SizedBox(height: 8),
               Row(
                 children: [
                   Text(
-                    selectedDate == null
+                    provider.dateOfDisaster == null
                         ? "Date of Disaster: Not Selected"
-                        : "Date of Disaster: ${selectedDate!.toLocal().toString().split(' ')[0]}",
+                        : "Date: ${provider.dateOfDisaster!.toLocal().toString().split(' ')[0]}",
                   ),
                   const Spacer(),
                   ElevatedButton(
-                    onPressed: _pickDate,
+                    onPressed: () => _pickDate(context, provider),
                     child: const Text("Select Date"),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
 
+              const SizedBox(height: 8),
               DropdownButtonFormField<String>(
+                value: provider.gender.isEmpty ? null : provider.gender,
                 decoration: const InputDecoration(labelText: "Select Gender"),
-                value: selectedGender,
-                items: genderOptions.map((gender) {
-                  return DropdownMenuItem(value: gender, child: Text(gender));
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    selectedGender = value;
-                  });
-                },
+                items: genderOptions.map((g) =>
+                    DropdownMenuItem(value: g, child: Text(g))
+                ).toList(),
+                onChanged: (val) => provider.updateGender(val ?? ''),
               ),
-              const SizedBox(height: 16),
 
+              const SizedBox(height: 16),
               Center(
                 child: ElevatedButton(
-                  onPressed: _goToMaterialsScreen,
+                  onPressed: () => _goToNext(context, provider),
                   child: const Text("다음"),
                 ),
               ),
@@ -130,59 +288,44 @@ class _RecordScreenState extends State<RecordScreen> {
           ),
         ),
       ),
+      bottomNavigationBar: CustomBottomNavBar(currentIndex: 0),
     );
   }
 
-  void _openAddressSearchScreen() async {
-    final selectedAddress = await Navigator.push(
+  void _openAddressSearchScreen(BuildContext context, DentalDataProvider provider) async {
+    final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => AddressSearchScreen()),
+      MaterialPageRoute(builder: (_) => AddressSearchScreen()),
     );
 
-    if (selectedAddress != null && selectedAddress is String) {
-      setState(() {
-        placeController.text = selectedAddress;
-      });
+    if (result is String) {
+      provider.updatePlace(result);
     }
   }
 
-  void _goToMaterialsScreen() {
-    String finalNature = selectedNature == "Other"
-        ? customNatureController.text
-        : selectedNature ?? "";
+  void _pickDate(BuildContext context, DentalDataProvider provider) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: provider.dateOfDisaster ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2101),
+    );
+    if (picked != null) {
+      provider.updateDisasterDate(picked);
+    }
+  }
 
-    if (placeController.text.isEmpty ||
-        finalNature.isEmpty ||
-        pmNoController.text.isEmpty ||
-        selectedDate == null ||
-        selectedGender == null) {
+  void _goToNext(BuildContext context, DentalDataProvider provider) {
+    if (provider.placeOfDisaster.isEmpty ||
+        provider.natureOfDisaster.isEmpty ||
+        provider.pmNumber.isEmpty ||
+        provider.dateOfDisaster == null ||
+        provider.gender.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("모든 필드를 입력하세요.")),
       );
       return;
     }
-
-    Navigator.pushNamed(context, '/materialsAvailable', arguments: {
-      'place': placeController.text,
-      'nature': finalNature,
-      'pmNo': pmNoController.text,
-      'date': selectedDate!.toIso8601String(),
-      'gender': selectedGender.toString(),
-    });
-  }
-
-  Future<void> _pickDate() async {
-    final DateTime? pickedDate = await showDatePicker(
-      context: context,
-      initialDate: selectedDate ?? DateTime.now(),
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2101),
-    );
-
-    if (pickedDate != null) {
-      setState(() {
-        selectedDate = pickedDate;
-      });
-    }
+    Navigator.pushReplacementNamed(context, '/materialsAvailable');
   }
 }
