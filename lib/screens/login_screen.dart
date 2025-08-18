@@ -153,7 +153,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('last_login_time', DateTime.now().millisecondsSinceEpoch);
 
-      Navigator.pushReplacementNamed(context, '/record');
+      Navigator.pushReplacementNamed(context, '/recordSetup');
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('로그인 실패: $e')),

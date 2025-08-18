@@ -64,6 +64,7 @@ import 'providers/dental_data_provider.dart';
 // 스크린들
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/record_setup_screen.dart';
 import 'screens/record_screen.dart';
 import 'screens/view_screen.dart';
 import 'screens/materials_available_screen.dart';
@@ -94,6 +95,7 @@ class MyApp extends StatelessWidget {
         routes: {
           '/splash': (_) => SplashScreen(),
           '/login': (_) => LoginScreen(),
+          '/recordSetup': (_) => const RecordSetupScreen(),
           '/record': (_) => RecordScreen(),
           '/view': (_) => ViewScreen(),
           '/materialsAvailable': (_) => MaterialsAvailableScreen(),

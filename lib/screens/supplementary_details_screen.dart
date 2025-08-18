@@ -82,6 +82,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/dental_data_provider.dart';
+import '../widgets/common_app_bar.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
 
 class SupplementaryDetailsScreen extends StatefulWidget {
@@ -113,9 +114,9 @@ class _SupplementaryDetailsScreenState extends State<SupplementaryDetailsScreen>
     final provider = Provider.of<DentalDataProvider>(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Supplementary Details"),
-        automaticallyImplyLeading: false,
+      appBar: const CommonAppBar(
+        title: "625 : Supplementary Details",
+        showRecordBadge: true, // ✅ 켬
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),

@@ -402,196 +402,138 @@
 // dental_data_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../providers/dental_data_provider.dart';
+import '../widgets/common_app_bar.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
 
 class DentalDataScreen extends StatelessWidget {
-  final List<int> fdiTeeth = [
-    18, 17, 16, 15, 14, 13, 12, 11,
-    21, 22, 23, 24, 25, 26, 27, 28,
-    31, 32, 33, 34, 35, 36, 37, 38,
-    48, 47, 46, 45, 44, 43, 42, 41
-  ];
+  const DentalDataScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<DentalDataProvider>(context);
+    final p = context.watch<DentalDataProvider>();
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('치과 데이터 입력 (635-650)'),
-        automaticallyImplyLeading: false,
+      appBar: const CommonAppBar(
+        title: "640–650 : Dental Data",
+        showRecordBadge: true,
       ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // FDI 데이터
-            Text("635: 특정 데이터 (Specific Data)",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            Wrap(
-              spacing: 8.0,
-              runSpacing: 8.0,
-              children: fdiTeeth.map((tooth) {
-                final hasDetail = provider.fdiToothData[tooth]?['detail']?.toString().isNotEmpty ?? false;
-                return ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: hasDetail ? Colors.green : null,
-                  ),
-                  icon: hasDetail ? Icon(Icons.check_circle_outline) : Icon(Icons.radio_button_unchecked),
-                  label: Text("FDI $tooth"),
-                  onPressed: () => _showToothDialog(context, provider, tooth),
-                );
-              }).toList(),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // 640: 기타 소견
+          Text("640: 기타 소견", style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          TextFormField(
+            initialValue: p.otherFindings,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              labelText: "기타 소견",
             ),
-            SizedBox(height: 16),
-
-            // 기타 소견
-            Text("640: 기타 소견",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            TextField(
-              maxLines: 3,
-              decoration: InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: "기타 소견",
-              ),
-              onChanged: provider.updateOtherFindings,
-            ),
-            SizedBox(height: 16),
-
-            // 치열 유형
-            Text("645: 치열 유형",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            DropdownButton<String>(
-              value: provider.dentitionType.isEmpty ? null : provider.dentitionType,
-              hint: Text("치열 유형 선택"),
-              items: ["유치", "혼합 치열", "영구 치열"]
-                  .map((type) =>
-                  DropdownMenuItem(value: type, child: Text(type)))
-                  .toList(),
-              onChanged: (String? value) {
-                if (value != null) {
-                  provider.updateDentitionType(value);
-                }
-              },
-            ),
-            SizedBox(height: 16),
-
-            // 나이 추정
-            Text("647: 나이 추정",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                        labelText: "최소 나이", border: OutlineInputBorder()),
-                    onChanged: (val) =>
-                        provider.updateAgeMin(int.tryParse(val)),
-                  ),
-                ),
-                SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                        labelText: "최대 나이", border: OutlineInputBorder()),
-                    onChanged: (val) =>
-                        provider.updateAgeMax(int.tryParse(val)),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 16),
-
-            // 품질 확인
-            Text("650: 품질 확인",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            TextField(
-              decoration: InputDecoration(
-                  labelText: "서명", border: OutlineInputBorder()),
-              onChanged: provider.updateQualitySignature,
-            ),
-            SizedBox(height: 8),
-            Row(
-              children: [
-                Text("날짜: "),
-                Text(provider.qualityCheckDate == null
-                    ? "선택되지 않음"
-                    : "${provider.qualityCheckDate!.toLocal()}".split(' ')[0]),
-                Spacer(),
-                ElevatedButton(
-                  onPressed: () async {
-                    DateTime? picked = await showDatePicker(
-                      context: context,
-                      initialDate: DateTime.now(),
-                      firstDate: DateTime(1900),
-                      lastDate: DateTime(2100),
-                    );
-                    if (picked != null) {
-                      provider.updateQualityDate(picked);
-                    }
-                  },
-                  child: Text("날짜 선택"),
-                ),
-              ],
-            ),
-            SizedBox(height: 16),
-
-            // 버튼
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                ElevatedButton(
-                  onPressed: () =>
-                      Navigator.pushReplacementNamed(context, '/dentalFindings'),
-                  child: Text("이전"),
-                ),
-                ElevatedButton(
-                  onPressed: () =>
-                      Navigator.pushReplacementNamed(context, '/finalReview'),
-                  child: Text("다음"),
-                ),
-              ],
-            )
-          ],
-        ),
-      ),
-      bottomNavigationBar: CustomBottomNavBar(currentIndex: 0),
-    );
-  }
-
-  void _showToothDialog(
-      BuildContext context, DentalDataProvider provider, int tooth) {
-    String detail = provider.fdiToothData[tooth]?['detail'] ?? '';
-    TextEditingController controller = TextEditingController(text: detail);
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text("FDI $tooth 데이터 입력"),
-        content: TextField(
-          maxLines: 3,
-          controller: controller,
-          decoration: InputDecoration(
-              labelText: "세부 정보 입력", border: OutlineInputBorder()),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              provider.updateToothDetail(tooth, controller.text);
-              Navigator.pop(context);
-            },
-            child: Text("저장"),
+            onChanged: p.updateOtherFindings,
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text("취소"),
+
+          const SizedBox(height: 20),
+
+          // 645: 치열 유형
+          Text("645: 치열 유형", style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            value: p.dentitionType.isEmpty ? null : p.dentitionType,
+            decoration: const InputDecoration(border: OutlineInputBorder(), hintText: "치열 유형 선택"),
+            items: const [
+              DropdownMenuItem(value: "유치", child: Text("유치")),
+              DropdownMenuItem(value: "혼합 치열", child: Text("혼합 치열")),
+              DropdownMenuItem(value: "영구 치열", child: Text("영구 치열")),
+            ],
+            onChanged: (v) => p.updateDentitionType(v ?? ''),
+          ),
+
+          const SizedBox(height: 20),
+
+          // 647: 나이 추정
+          Text("647: 나이 추정", style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  initialValue: p.ageMin?.toString() ?? '',
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: "최소 나이", border: OutlineInputBorder()),
+                  onChanged: (v) => p.updateAgeMin(int.tryParse(v)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextFormField(
+                  initialValue: p.ageMax?.toString() ?? '',
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: "최대 나이", border: OutlineInputBorder()),
+                  onChanged: (v) => p.updateAgeMax(int.tryParse(v)),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          // 650: 품질 확인
+          Text("650: 품질 확인", style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          TextFormField(
+            initialValue: p.qualityCheckSignature,
+            decoration: const InputDecoration(labelText: "서명", border: OutlineInputBorder()),
+            onChanged: p.updateQualitySignature,
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Text("날짜: "),
+              Text(
+                p.qualityCheckDate == null
+                    ? "선택되지 않음"
+                    : "${p.qualityCheckDate!.toLocal()}".split(' ')[0],
+              ),
+              const Spacer(),
+              ElevatedButton(
+                onPressed: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: p.qualityCheckDate ?? DateTime.now(),
+                    firstDate: DateTime(1900),
+                    lastDate: DateTime(2100),
+                  );
+                  if (picked != null) p.updateQualityDate(picked);
+                },
+                child: const Text("날짜 선택"),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 24),
+
+          // 이동 버튼
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              OutlinedButton(
+                onPressed: () => Navigator.pushReplacementNamed(context, '/dentalFindings'),
+                child: const Text("이전"),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pushReplacementNamed(context, '/finalReview'),
+                child: const Text("다음"),
+              ),
+            ],
           ),
         ],
       ),
+      bottomNavigationBar: const CustomBottomNavBar(currentIndex: 0),
     );
   }
 }
+
 

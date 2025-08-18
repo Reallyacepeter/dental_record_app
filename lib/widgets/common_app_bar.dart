@@ -1,55 +1,50 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
+import '../providers/dental_data_provider.dart';
 
 class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
-  final bool showLogout; // 로그아웃 버튼 표시 여부
+  final bool showRecordBadge; // ✅ 추가
+  final bool automaticallyImplyLeading;
 
-  const CommonAppBar({required this.title, this.showLogout = false, Key? key}) : super(key: key);
+  const CommonAppBar({
+    super.key,
+    required this.title,
+    this.showRecordBadge = false,           // ✅ 기본은 표시 안 함
+    this.automaticallyImplyLeading = true,
+  });
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 
   @override
   Widget build(BuildContext context) {
     return AppBar(
       title: Text(title),
-      actions: showLogout
+      automaticallyImplyLeading: automaticallyImplyLeading,
+      actions: showRecordBadge
           ? [
-        IconButton(
-          icon: const Icon(Icons.logout),
-          onPressed: () async {
-            final shouldLogout = await _showLogoutConfirmationDialog(context);
-            if (shouldLogout == true) {
-              await FirebaseAuth.instance.signOut(); // 로그아웃 실행
-              Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-            }
+        Consumer<DentalDataProvider>(
+          builder: (context, p, _) {
+            final isPm = p.recordType == 'PM';
+            final no = isPm ? p.pmNumber : p.amNumber;
+            final label = isPm ? 'PM' : 'AM';
+            final icon = isPm ? Icons.person_off : Icons.person;
+            return Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Chip(
+                avatar: Icon(icon, size: 18),
+                label: Text(
+                  '$label No: ${no.isEmpty ? "-" : no}',
+                  overflow: TextOverflow.ellipsis,
+                ),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            );
           },
         ),
       ]
           : null,
     );
   }
-
-  Future<bool?> _showLogoutConfirmationDialog(BuildContext context) async {
-    return showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text("로그아웃"),
-          content: const Text("정말로 로그아웃 하시겠습니까?"),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false), // 아니오
-              child: const Text("아니오"),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true), // 예
-              child: const Text("예"),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 }

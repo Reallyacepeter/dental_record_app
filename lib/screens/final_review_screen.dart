@@ -242,7 +242,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../providers/dental_data_provider.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
 import 'package:photo_view/photo_view.dart';
@@ -253,6 +252,10 @@ class FinalReviewScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<DentalDataProvider>(context);
+    final isPm = provider.recordType == 'PM';
+    final recordLabel = isPm ? 'Post-mortem (PM)' : 'Ante-mortem (AM)';
+    final idLabel = isPm ? 'PM 번호' : 'AM 번호';
+    final idValue = isPm ? provider.pmNumber : provider.amNumber;
 
     return Scaffold(
       appBar: AppBar(
@@ -270,9 +273,10 @@ class FinalReviewScreen extends StatelessWidget {
               child: ListView(
                 children: [
                   const Text("📍 기본 정보", style: TextStyle(fontWeight: FontWeight.bold)),
-                  Text("재난 장소: ${provider.placeOfDisaster}"),
-                  Text("재난 유형: ${provider.natureOfDisaster}"),
-                  Text("PM 번호: ${provider.pmNumber}"),
+                  Text("기록 유형: $recordLabel"),
+                  Text("재난 장소: ${provider.placeForUi.isEmpty ? '없음' : provider.placeForUi}"),   // ✅ 잠금/사용자 선택 모두 OK
+                  Text("재난 유형: ${provider.natureForUi.isEmpty ? '없음' : provider.natureForUi}"), // ✅ 잠금/사용자 선택 모두 OK
+                  Text("$idLabel: ${idValue.isEmpty ? '없음' : idValue}"),
                   Text("재난 날짜: ${provider.dateOfDisaster?.toLocal().toString().split(' ')[0] ?? "없음"}"),
                   Text("성별: ${provider.gender}"),
                   const Divider(),
@@ -308,21 +312,6 @@ class FinalReviewScreen extends StatelessWidget {
                   if (provider.uploadedFiles.isEmpty)
                     const Text("파일 없음")
                   else
-                    // ...provider.uploadedFiles.map((fileUrl) => InkWell(
-                    //   onTap: () async {
-                    //     final uri = Uri.parse(fileUrl);
-                    //     if (await canLaunchUrl(uri)) {
-                    //       await launchUrl(uri, mode: LaunchMode.externalApplication);
-                    //     } else {
-                    //       ScaffoldMessenger.of(context).showSnackBar(
-                    //           const SnackBar(content: Text("파일 열기 실패")));
-                    //     }
-                    //   },
-                    //   child: Padding(
-                    //     padding: const EdgeInsets.symmetric(vertical: 4.0),
-                    //     child: Text(fileUrl, style: const TextStyle(color: Colors.blue)),
-                    //   ),
-                    // )),
                     ...provider.uploadedFiles.map((url) => InkWell(
                       onTap: () => _openImage(context, url),
                       child: Padding(
@@ -348,7 +337,7 @@ class FinalReviewScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 ElevatedButton(
-                  onPressed: () => Navigator.pushReplacementNamed(context,'/dentalFindings'),
+                  onPressed: () => Navigator.pushReplacementNamed(context,'/DentalDataScreen'),
                   child: const Text("이전"),
                 ),
                 ElevatedButton(
@@ -399,5 +388,4 @@ class FinalReviewScreen extends StatelessWidget {
       ),
     );
   }
-
 }

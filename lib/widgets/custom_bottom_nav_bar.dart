@@ -10,7 +10,7 @@ class CustomBottomNavBar extends StatelessWidget {
 
     switch (index) {
       case 0:
-        Navigator.pushReplacementNamed(context, '/record');
+        Navigator.pushReplacementNamed(context, '/recordSetup');
         break;
       case 1:
         Navigator.pushReplacementNamed(context, '/view');

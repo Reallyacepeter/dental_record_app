@@ -194,6 +194,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/dental_data_provider.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
+import '../widgets/common_app_bar.dart';
 
 class MaterialsAvailableScreen extends StatefulWidget {
   @override
@@ -217,9 +218,9 @@ class _MaterialsAvailableScreenState extends State<MaterialsAvailableScreen> {
     final provider = Provider.of<DentalDataProvider>(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("610: Materials Available"),
-        automaticallyImplyLeading: false,
+      appBar: const CommonAppBar(
+        title: "610 : Materials Available",
+        showRecordBadge: true, // ✅ 켬
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),

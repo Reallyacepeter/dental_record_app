@@ -522,6 +522,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:provider/provider.dart';
 import '../providers/dental_data_provider.dart';
+import '../widgets/common_app_bar.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
 import 'dart:io';
 import 'package:path/path.dart' as path;
@@ -541,8 +542,10 @@ class _DentalImagesScreenState extends State<DentalImagesScreen> {
     otherRadiographsController.text = provider.otherRadiographs;
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Dental Images and Records"),
-        automaticallyImplyLeading: false,),
+      appBar: const CommonAppBar(
+        title: "615 : Dental Images",
+        showRecordBadge: true, // ✅ 켬
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(children: [
