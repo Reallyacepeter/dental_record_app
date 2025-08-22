@@ -2130,7 +2130,109 @@ class DentalSpan {
   );
 }
 
+// ===== 635 Specific Data =====
+class SpecificData {
+  SpecificData();
+  // 전역 코드: bite/crown/root/status/position
+  final Map<String, List<String>> global = {
+    'bite': <String>[],
+    'crown': <String>[],
+    'root': <String>[],
+    'status': <String>[],
+    'position': <String>[],
+  };
+
+  // 표면 코드: O/M/D/L/B × (fillings/periodontium)
+  final Map<String, Map<String, List<String>>> surface = {
+    for (final s in kToothSurfaces)
+      s: {
+        'fillings': <String>[],
+        'periodontium': <String>[],
+      }
+  };
+
+  String? toothNote;                        // 치아 전역 자연어
+  final Map<String, String> surfaceNote = <String, String>{}; // 표면 자연어
+
+  Map<String, dynamic> toJson() => {
+    'global': global,
+    'surface': surface,
+    'toothNote': toothNote,
+    'surfaceNote': surfaceNote,
+  };
+
+  factory SpecificData.fromJson(Map<String, dynamic> j) {
+    final x = SpecificData();
+    final g = (j['global'] as Map?) ?? {};
+    for (final k in x.global.keys) {
+      x.global[k] = List<String>.from((g[k] as List?) ?? const []);
+    }
+    final sv = (j['surface'] as Map?) ?? {};
+    for (final s in kToothSurfaces) {
+      final m = (sv[s] as Map?) ?? {};
+      x.surface[s]!['fillings']     = List<String>.from((m['fillings'] as List?) ?? const []);
+      x.surface[s]!['periodontium'] = List<String>.from((m['periodontium'] as List?) ?? const []);
+    }
+    x.toothNote = j['toothNote'] as String?;
+    final sn = (j['surfaceNote'] as Map?) ?? {};
+    x.surfaceNote.addAll(sn.map((k, v) => MapEntry(k.toString(), v.toString())));
+    return x;
+  }
+}
+
+
 class DentalDataProvider extends ChangeNotifier {
+  // 635 Specific Data (인스턴스 보관)
+  final Map<int, SpecificData> _spec635 = <int, SpecificData>{};
+
+  /// 읽기 전용 getter (없으면 null)
+  SpecificData? getSpecRead(int fdi) => _spec635[fdi];
+
+  /// 쓰기용: 없으면 생성해서 반환
+  SpecificData ensureSpec(int fdi) =>
+      _spec635.putIfAbsent(fdi, () => SpecificData());
+
+  // 전역 코드 토글
+  void toggleGlobalCode(int fdi, String group, String code) {
+    final s = ensureSpec(fdi).global[group];
+    if (s == null) return;
+    if (s.contains(code)) { s.remove(code); } else { s.add(code); }
+    notifyListeners();
+  }
+
+  // 표면 코드 토글
+  void toggleSurfaceCode(int fdi, String surface, String group, String code) {
+    if (!kToothSurfaces.contains(surface)) return;
+    final s = ensureSpec(fdi).surface[surface]?[group];
+    if (s == null) return;
+    if (s.contains(code)) { s.remove(code); } else { s.add(code); }
+    notifyListeners();
+  }
+
+  // 자연어 메모
+  void setToothNote635(int fdi, String? note) {
+    ensureSpec(fdi).toothNote = (note?.trim().isEmpty ?? true) ? null : note!.trim();
+    notifyListeners();
+  }
+
+  void setSurfaceNote635(int fdi, String surface, String note) {
+    if (!kToothSurfaces.contains(surface)) return;
+    ensureSpec(fdi).surfaceNote[surface] = note;
+    notifyListeners();
+  }
+
+  // 표면 데이터 전체 삭제 (코드+메모)
+  void clearSurface635(int fdi, String surface) {
+    if (!kToothSurfaces.contains(surface)) return;
+    final s = _spec635[fdi];
+    if (s == null) return;
+    s.surface[surface]?['fillings']?.clear();
+    s.surface[surface]?['periodontium']?.clear();
+    s.surfaceNote.remove(surface);
+    notifyListeners();
+  }
+
+
   // ----------------- Record / Incident lock -----------------
   String recordType = 'PM';
   String amNumber = '';
@@ -2227,16 +2329,32 @@ class DentalDataProvider extends ChangeNotifier {
     return spans.where((sp) => sp.teeth.any(set.contains)).toList();
   }
 
+  bool _isUpperFdi(int fdi) {
+    final q = fdi ~/ 10;
+    return q == 1 || q == 2 || q == 5 || q == 6;
+  }
+
+  bool _allSameArch(Iterable<int> fdis) {
+    if (fdis.isEmpty) return true;
+    final first = _isUpperFdi(fdis.first);
+    for (final t in fdis) {
+      if (_isUpperFdi(t) != first) return false;
+    }
+    return true;
+  }
+
   void addDentureSpan(List<int> selectedFdi, {String? code}) {
     if (selectedFdi.isEmpty) return;
-    spans.add(
-      DentalSpan(
-        id: _randId(),
-        type: DentalSpanType.dentureOrtho,
-        teeth: Set<int>.from(selectedFdi),
-        code: code,
-      ),
-    );
+    if (!_allSameArch(selectedFdi)) {
+      debugPrint('❌ 상/하악 혼합 스팬 금지');
+      return;
+    }
+    spans.add(DentalSpan(
+      id: _randId(),
+      type: DentalSpanType.dentureOrtho,
+      teeth: Set<int>.from(selectedFdi),
+      code: code,
+    ));
     notifyListeners();
   }
 
@@ -2247,16 +2365,20 @@ class DentalDataProvider extends ChangeNotifier {
     String? code,
   }) {
     if (selectedFdi.isEmpty || abutments.isEmpty || pontics.isEmpty) return;
-    spans.add(
-      DentalSpan(
-        id: _randId(),
-        type: DentalSpanType.bridge,
-        teeth: Set<int>.from(selectedFdi),
-        abutments: abutments,
-        pontics: pontics,
-        code: code,
-      ),
-    );
+    // 전체 치아(지대치+pontic 포함) 같은 악궁만 허용
+    final union = {...selectedFdi, ...abutments, ...pontics};
+    if (!_allSameArch(union)) {
+      debugPrint('❌ 상/하악 혼합 브리지 금지');
+      return;
+    }
+    spans.add(DentalSpan(
+      id: _randId(),
+      type: DentalSpanType.bridge,
+      teeth: Set<int>.from(selectedFdi),
+      abutments: abutments,
+      pontics: pontics,
+      code: code,
+    ));
     notifyListeners();
   }
 
@@ -2280,6 +2402,30 @@ class DentalDataProvider extends ChangeNotifier {
     if (removed > 0) notifyListeners();
     return removed;
   }
+
+// 635 한 줄 프리뷰
+  String build635Line(int fdi) {
+    final s = _spec635[fdi];
+    if (s == null) return '';
+    final out = <String>[];
+    for (final surf in kToothSurfaces) {
+      for (final grp in const ['fillings', 'periodontium']) {
+        final list = s.surface[surf]![grp]!;
+        if (list.isNotEmpty) out.add('${list.join(",")}($surf)');
+      }
+    }
+    for (final g in const ['bite','crown','root','status','position']) {
+      final list = s.global[g]!;
+      if (list.isNotEmpty) out.add(list.join(','));
+    }
+    if (s.toothNote != null && s.toothNote!.isNotEmpty) out.add('note:${s.toothNote}');
+    return out.join(' · ');
+  }
+
+  // 전체 내보내기
+  Map<String, dynamic> exportSpecAll() => {
+    for (final e in _spec635.entries) e.key.toString(): e.value.toJson(),
+  };
 
   // ----------------- (하위 호환) 간단 문자열 메모 조작 -----------------
   void setToothDetail(int tooth, String detail) {
@@ -2510,6 +2656,19 @@ class DentalDataProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void loadFromMap(Map<String, dynamic> m) {
+    spans
+      ..clear()
+      ..addAll(((m['spans'] as List?) ?? const [])
+          .map((e) => DentalSpan.fromJson(Map<String, dynamic>.from(e))));
+    _spec635
+      ..clear()
+      ..addAll(((m['spec635'] as Map?) ?? const {})
+          .map((k, v) => MapEntry(int.parse(k.toString()), SpecificData.fromJson(Map<String, dynamic>.from(v)))));
+    // 필요시 fdiToothData 등 다른 필드도 복원
+    notifyListeners();
+  }
+
   // ----------------- Reset / Save -----------------
   void resetAll() {
     recordType = 'PM';
@@ -2558,6 +2717,8 @@ class DentalDataProvider extends ChangeNotifier {
     dateOfDisaster = null;
     gender = '';
 
+    _spec635.clear();
+
     notifyListeners();
   }
 
@@ -2578,6 +2739,7 @@ class DentalDataProvider extends ChangeNotifier {
 
       // STEP 2: 스팬 직렬화
       'spans': spans.map((e) => e.toJson()).toList(),
+      'spec635': exportSpecAll(),
 
       'otherFindings': otherFindings,
       'dentitionType': dentitionType,

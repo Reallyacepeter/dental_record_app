@@ -3148,6 +3148,9 @@ import '../providers/dental_data_provider.dart';
 import '../widgets/common_app_bar.dart';
 import '../widgets/custom_bottom_nav_bar.dart';
 import 'quadrant_zoom_screen.dart';
+import '../data/codes_635.dart';
+import '../data/surface_fill.dart';
+
 
 class DentalFindingsScreen extends StatefulWidget {
   @override
@@ -3214,6 +3217,9 @@ class _DentalFindingsScreenState extends State<DentalFindingsScreen> {
             onMakeBridge: selectedTeeth.length < 2
                 ? null
                 : () => _showBridgeDialog(context, p),
+            onRemoveSpans: selectedTeeth.isEmpty
+                ? null
+                : () => _showRemoveSpansDialog(context, p),
           ),
 
           // ===== 영구치 =====
@@ -3507,6 +3513,73 @@ class _DentalFindingsScreenState extends State<DentalFindingsScreen> {
     setState(() { selectedTeeth.clear(); multiMode = false; multiArchUpper = null; });
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bridge 스팬이 추가되었습니다.')));
   }
+
+  Future<void> _showRemoveSpansDialog(BuildContext context, DentalDataProvider p) async {
+    bool rmDent = true;
+    bool rmBridge = true;
+
+    final hit = p.spansIntersecting(selectedTeeth);
+    if (hit.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('겹치는 스팬이 없습니다.')),
+      );
+      return;
+    }
+
+    await showDialog(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setStateDlg) => AlertDialog(
+          title: const Text('스팬 삭제'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('대상 스팬: ${hit.length}개'),
+              const SizedBox(height: 8),
+              CheckboxListTile(
+                value: rmDent,
+                onChanged: (v) => setStateDlg(() => rmDent = v ?? true),
+                title: const Text('Denture/Ortho'),
+                contentPadding: EdgeInsets.zero,
+              ),
+              CheckboxListTile(
+                value: rmBridge,
+                onChanged: (v) => setStateDlg(() => rmBridge = v ?? true),
+                title: const Text('Bridge'),
+                contentPadding: EdgeInsets.zero,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
+            FilledButton(
+              onPressed: (!rmDent && !rmBridge) ? null : () => Navigator.pop(ctx),
+              child: const Text('삭제'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (!rmDent && !rmBridge) return;
+
+    final removed = p.removeSpansIntersecting(
+      selectedTeeth,
+      removeDenture: rmDent,
+      removeBridge: rmBridge,
+    );
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('삭제된 스팬: $removed개')),
+    );
+
+    setState(() {
+      selectedTeeth.clear();
+      multiMode = false;
+      multiArchUpper = null;
+    });
+  }
 }
 
 // ============== 위젯들 ==============
@@ -3531,10 +3604,11 @@ class _InfoBanner extends StatelessWidget {
           const SizedBox(width: 8),
           const Expanded(
             child: Text(
-              "💡 각 악궁을 탭하면 확대 화면으로 이동합니다.\n"
-                  "확대 화면: 두 손가락으로 확대/축소, 한 번 탭=5면 토글, 길게=초기화\n"
-                  "여기(축소 보기)에서 길게 눌러 다중 선택 후 Denture/Bridge를 생성할 수 있어요.\n"
-                  "다중 선택 중에는 첫 선택한 악궁만 선택 가능합니다.",
+              "💡 사용법\n"
+                  "• 축소 보기에서 치아를 탭하면 확대 화면으로 이동합니다.\n"
+                  "• 축소 보기에서 길게 눌러 다중선택 모드를 켜고, 같은 악궁(상/하)만 묶어서 Denture/Bridge를 만들 수 있어요.\n"
+                  "  (첫 선택으로 상/하악이 고정됩니다)\n"
+                  "• 이미 생성된 스팬은 축소 보기 타일에 파란 마킹으로 표시됩니다.",
             ),
           ),
           IconButton(onPressed: onClose, icon: const Icon(Icons.close, color: Colors.blue)),
@@ -3552,6 +3626,7 @@ class _MultiSelectToolbar extends StatelessWidget {
   final VoidCallback? onClear;
   final VoidCallback? onMakeDenture;
   final VoidCallback? onMakeBridge;
+  final VoidCallback? onRemoveSpans;
 
   const _MultiSelectToolbar({
     required this.multiMode,
@@ -3561,6 +3636,7 @@ class _MultiSelectToolbar extends StatelessWidget {
     this.onClear,
     this.onMakeDenture,
     this.onMakeBridge,
+    this.onRemoveSpans,
   });
 
   @override
@@ -3614,17 +3690,17 @@ class _MultiSelectToolbar extends StatelessWidget {
               children: [
                 IconButton(
                   onPressed: onMakeDenture,
-                  icon: const Icon(Icons.circle_outlined),
+                  icon: const Icon(Icons.all_out),
                   tooltip: 'Denture/Ortho',
                 ),
                 IconButton(
                   onPressed: onMakeBridge,
-                  icon: const Icon(Icons.horizontal_rule),
+                  icon: const Icon(Icons.linear_scale),
                   tooltip: 'Bridge',
                 ),
                 IconButton(
                   onPressed: onClear,
-                  icon: const Icon(Icons.clear_all),
+                  icon: const Icon(Icons.backspace),
                   tooltip: '선택 해제',
                 ),
               ],
@@ -3634,14 +3710,20 @@ class _MultiSelectToolbar extends StatelessWidget {
               children: [
                 FilledButton.tonalIcon(
                   onPressed: onMakeDenture,
-                  icon: const Icon(Icons.circle_outlined),
+                  icon: const Icon(Icons.all_out),
                   label: const Text('Denture/Ortho'),
                 ),
                 const SizedBox(width: 8),
                 FilledButton.icon(
                   onPressed: onMakeBridge,
-                  icon: const Icon(Icons.horizontal_rule),
+                  icon: const Icon(Icons.linear_scale),
                   label: const Text('Bridge'),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: onRemoveSpans,
+                  icon: const Icon(Icons.delete_sweep),
+                  label: const Text('스팬 삭제'),
                 ),
               ],
             );
@@ -3705,55 +3787,196 @@ class _ArchBlock extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, c) {
         const gap = 8.0;
-        final n = teeth.first.length;              // 8 또는 5 (좌/우 동일)
+        final n = teeth.first.length; // 8 or 5
         final tile = ((c.maxWidth - gap) / (n * 2)).clamp(20.0, 44.0);
 
-        return Column(
+        // 각 사이드 실제 폭(Expanded가 차지하는 폭)
+        final sideAvail = (c.maxWidth - gap) / 2;
+        final perSideSpacing = n > 1 ? (sideAvail - n * tile) / (n - 1) : 0.0;
+
+        return Stack(
           children: [
-            Row(
+            // 덴쳐 오버레이 (좌/우 합쳐서 하나의 큰 타원 가능)
+            Positioned.fill(
+              child: _ArchDentureOverlay(
+                topNumbers: topNumbers,
+                leftTeeth: teeth[0],
+                rightTeeth: teeth[1],
+                tile: tile,
+                sideWidth: sideAvail,
+                perSideSpacing: perSideSpacing,
+                gap: gap,
+              ),
+            ),
+            Column(
               children: [
-                Expanded(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => onTapArch(teeth[0]),
-                    child: _TeethRow(
-                      numbersOnTop: topNumbers,
-                      teeth: teeth[0],
-                      tile: tile,
-                      multiMode: multiMode,
-                      archLockUpper: archLockUpper,
-                      selectedSet: selectedSet,
-                      onTapTooth: onTapTooth,
-                      onLongPressTooth: onLongPressTooth,
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => onTapArch(teeth[0]),
+                        child: _TeethRow(
+                          numbersOnTop: topNumbers,
+                          teeth: teeth[0],
+                          tile: tile,
+                          multiMode: multiMode,
+                          archLockUpper: archLockUpper,
+                          selectedSet: selectedSet,
+                          onTapTooth: onTapTooth,
+                          onLongPressTooth: onLongPressTooth,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: gap),
-                Expanded(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => onTapArch(teeth[1]),
-                    child: _TeethRow(
-                      numbersOnTop: topNumbers,
-                      teeth: teeth[1],
-                      tile: tile,
-                      multiMode: multiMode,
-                      archLockUpper: archLockUpper,
-                      selectedSet: selectedSet,
-                      onTapTooth: onTapTooth,
-                      onLongPressTooth: onLongPressTooth,
+                    const SizedBox(width: gap),
+                    Expanded(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => onTapArch(teeth[1]),
+                        child: _TeethRow(
+                          numbersOnTop: topNumbers,
+                          teeth: teeth[1],
+                          tile: tile,
+                          multiMode: multiMode,
+                          archLockUpper: archLockUpper,
+                          selectedSet: selectedSet,
+                          onTapTooth: onTapTooth,
+                          onLongPressTooth: onLongPressTooth,
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
+                const SizedBox(height: 8),
               ],
             ),
-            const SizedBox(height: 8),
           ],
         );
       },
     );
   }
 }
+
+class _ArchDentureOverlay extends StatelessWidget {
+  final bool topNumbers;
+  final List<int> leftTeeth;
+  final List<int> rightTeeth;
+  final double tile;
+  final double sideWidth;
+  final double perSideSpacing;
+  final double gap;
+  const _ArchDentureOverlay({
+    required this.topNumbers,
+    required this.leftTeeth,
+    required this.rightTeeth,
+    required this.tile,
+    required this.sideWidth,
+    required this.perSideSpacing,
+    required this.gap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.watch<DentalDataProvider>();
+    final spans = p.spans.where((sp) => sp.type == DentalSpanType.dentureOrtho).toList();
+
+    // 타일 y 위치(숫자 라벨*0.6 높이만큼 오프셋)
+    final tileTop = topNumbers ? tile * .6 : 0.0;
+
+    return CustomPaint(
+      painter: _ArchDentureOverlayPainter(
+        leftTeeth: leftTeeth,
+        rightTeeth: rightTeeth,
+        tile: tile,
+        sideWidth: sideWidth,
+        perSideSpacing: perSideSpacing,
+        gap: gap,
+        tileTop: tileTop,
+        spans: spans,
+      ),
+    );
+  }
+}
+
+class _ArchDentureOverlayPainter extends CustomPainter {
+  final List<int> leftTeeth;
+  final List<int> rightTeeth;
+  final double tile;
+  final double sideWidth;
+  final double perSideSpacing;
+  final double gap;
+  final double tileTop;
+  final List<DentalSpan> spans;
+
+  _ArchDentureOverlayPainter({
+    required this.leftTeeth,
+    required this.rightTeeth,
+    required this.tile,
+    required this.sideWidth,
+    required this.perSideSpacing,
+    required this.gap,
+    required this.tileTop,
+    required this.spans,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // FDI -> 타일 rect 매핑 (아치 전체 좌표)
+    final rectMap = <int, Rect>{};
+
+    // 왼쪽 사이드
+    for (int i = 0; i < leftTeeth.length; i++) {
+      final x = i * (tile + perSideSpacing);
+      rectMap[leftTeeth[i]] = Rect.fromLTWH(x, tileTop, tile, tile);
+    }
+    // 오른쪽 사이드
+    final baseX = sideWidth + gap;
+    for (int i = 0; i < rightTeeth.length; i++) {
+      final x = baseX + i * (tile + perSideSpacing);
+      rectMap[rightTeeth[i]] = Rect.fromLTWH(x, tileTop, tile, tile);
+    }
+
+    final paintBlue = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = (tile * .12).clamp(1.4, 2.8)
+      ..color = Colors.blueAccent;
+
+    for (final sp in spans) {
+      final inArch = [...leftTeeth, ...rightTeeth].where(sp.teeth.contains).toList();
+      if (inArch.isEmpty) continue;
+
+      // 전체 bounding box (좌/우를 가로질러 한 번에)
+      double minL = double.infinity, minT = double.infinity, maxR = -1e9, maxB = -1e9;
+      for (final t in inArch) {
+        final r = rectMap[t]!;
+        if (r.left < minL) minL = r.left;
+        if (r.top < minT) minT = r.top;
+        if (r.right > maxR) maxR = r.right;
+        if (r.bottom > maxB) maxB = r.bottom;
+      }
+      var union = Rect.fromLTRB(minL, minT, maxR, maxB);
+
+      // 여백 추가 + 캡슐 형태
+      final rr = RRect.fromRectAndRadius(
+        union.inflate(tile * .2),
+        Radius.circular(union.height),
+      );
+      canvas.drawRRect(rr, paintBlue);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ArchDentureOverlayPainter old) =>
+      old.leftTeeth != leftTeeth ||
+          old.rightTeeth != rightTeeth ||
+          old.tile != tile ||
+          old.sideWidth != sideWidth ||
+          old.perSideSpacing != perSideSpacing ||
+          old.gap != gap ||
+          old.tileTop != tileTop ||
+          old.spans != spans;
+}
+
 
 class _TeethRow extends StatelessWidget {
   final bool numbersOnTop;
@@ -3809,12 +4032,68 @@ class _TeethRow extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: teeth.map((fdi) {
-        final selectedSurfaces = p.getSelectedSurfaces(fdi);
-        final hasAnyDetail = (p.fdiToothData[fdi]?['detail'] != null) || selectedSurfaces.isNotEmpty;
+        final spec = p.getSpecRead(fdi);
 
-        final lockedOut = multiMode && archLockUpper != null && (_isUpperLocal(fdi) != archLockUpper);
-        final opacity = lockedOut ? 0.35 : 1.0;
-        final isSelectedNow = selectedSet.contains(fdi); // ✅ 선택 강조
+        // 잠금/투명도/선택 상태
+        final bool lockedOut = multiMode && archLockUpper != null && (_isUpperLocal(fdi) != archLockUpper);
+        final double opacity = lockedOut ? 0.35 : 1.0;
+        final bool isSelectedNow = selectedSet.contains(fdi);
+
+        // 축소뷰 요약 색 (빨강/파랑)
+        final bool hasCariesAny = (spec?.surface.values.any((m) {
+          final list = (m['fillings'] ?? const <String>[]) as List<String>;
+          return list.any(isCariesCode);
+        }) ?? false);
+
+        final bool hasFillingAny = (spec?.surface.values.any((m) {
+          final list = (m['fillings'] ?? const <String>[]) as List<String>;
+          return list.isNotEmpty;
+        }) ?? false);
+
+        // 축소뷰에서 보조 하이라이트: 뭔가라도 데이터가 있으면 보라 테두리
+        bool hasAnyDetail = false;
+        if (spec != null) {
+          // 표면 코드 존재?
+          if (!hasAnyDetail) {
+            for (final m in spec.surface.values) {
+              final f = (m['fillings'] ?? const <String>[]) as List<String>;
+              final p = (m['periodontium'] ?? const <String>[]) as List<String>;
+              if (f.isNotEmpty || p.isNotEmpty) { hasAnyDetail = true; break; }
+            }
+          }
+          // 전역 코드 존재?
+          if (!hasAnyDetail) {
+            for (final g in const ['bite','crown','root','status','position']) {
+              if ((spec.global[g] ?? const <String>[]).isNotEmpty) { hasAnyDetail = true; break; }
+            }
+          }
+          // 노트 존재?
+          if (!hasAnyDetail) {
+            if ((spec.toothNote ?? '').trim().isNotEmpty ||
+                spec.surfaceNote.values.any((v) => (v).toString().trim().isNotEmpty)) {
+              hasAnyDetail = true;
+            }
+          }
+        }
+
+        // 전역코드 → 축소뷰 마킹
+        final crownCodes = (spec?.global['crown'] ?? const <String>[]) as List<String>;
+        final statusCodes = (spec?.global['status'] ?? const <String>[]) as List<String>;
+        final rootCodes   = (spec?.global['root']   ?? const <String>[]) as List<String>;
+
+        final bool ringCrown = crownCodes.isNotEmpty; // crown 있으면 링
+        final bool twoHorizontal = statusCodes
+            .map((e) => e.toUpperCase())
+            .any((c) => c == 'MIS' || c.startsWith('MIS')); // MIS*
+        final bool oneVertical = rootCodes
+            .map((e) => e.toUpperCase())
+            .any((c) => c == 'IPX' || c.startsWith('IPX')); // IPX*
+
+        // 스팬 마커(브릿지/덴쳐) 계산
+        final m = markers[fdi]!;
+        final bool ringAbutOrCrown = m.abut || ringCrown;          // 링: 지대치 OR crown
+        final bool ponticOrMissing = m.pontic || twoHorizontal;    // 수평2줄: pontic OR MIS
+        const bool drawDentureSmall = false;                        // 덴쳐 작은동그라미는 축소뷰에서 그리지 않음
 
         return Opacity(
           opacity: opacity,
@@ -3826,20 +4105,23 @@ class _TeethRow extends StatelessWidget {
                 if (numbersOnTop) _ToothNumber(fdi, tile),
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: () {
-                    if (!lockedOut) onTapTooth(fdi);
-                  },
-                  onLongPress: () {
-                    if (!lockedOut) onLongPressTooth(fdi);
-                  },
+                  onTap: () { if (!lockedOut) onTapTooth(fdi); },
+                  onLongPress: () { if (!lockedOut) onLongPressTooth(fdi); },
                   child: _MiniToothTile(
                     fdi: fdi,
                     size: tile,
                     highlighted: hasAnyDetail,
-                    isSelected: isSelectedNow, // ✅
-                    markDenture: markers[fdi]!.denture,
-                    markAbut: markers[fdi]!.abut,
-                    markPontic: markers[fdi]!.pontic,
+                    isSelected: isSelectedNow,
+                    // 스팬/전역 마킹
+                    markDenture: drawDentureSmall,
+                    markAbut: ringAbutOrCrown,
+                    markPontic: ponticOrMissing,
+                    ringCrown: ringCrown,
+                    twoHorizontal: twoHorizontal,
+                    oneVertical: oneVertical,
+                    // 요약 칠
+                    fillRed: hasCariesAny,
+                    fillBlue: !hasCariesAny && hasFillingAny,
                   ),
                 ),
                 if (!numbersOnTop) _ToothNumber(fdi, tile),
@@ -3871,10 +4153,19 @@ class _MiniToothTile extends StatelessWidget {
   final int fdi;
   final double size;
   final bool highlighted;
-  final bool isSelected;   // ✅ 다중선택 강조
-  final bool markDenture;
+  final bool isSelected;   // 다중선택 강조
+  final bool markDenture;  // 축소뷰에선 사용 안함(항상 false로 넘김)
   final bool markAbut;
   final bool markPontic;
+
+  // ▼ 전역코드 마킹 (축소뷰에도 표시)
+  final bool ringCrown;     // crown → 파란 링
+  final bool twoHorizontal; // status(MIS*) → 수평 2줄
+  final bool oneVertical;   // root(IPX*) → 수직 1줄
+
+  // ▼ 요약 칠(빨강/파랑)
+  final bool fillRed;       // 우식 있음
+  final bool fillBlue;      // 충전 있음(우식 없을 때)
 
   const _MiniToothTile({
     required this.fdi,
@@ -3884,6 +4175,11 @@ class _MiniToothTile extends StatelessWidget {
     this.markDenture = false,
     this.markAbut = false,
     this.markPontic = false,
+    this.ringCrown = false,
+    this.twoHorizontal = false,
+    this.oneVertical = false,
+    this.fillRed = false,
+    this.fillBlue = false,
   });
 
   @override
@@ -3892,22 +4188,197 @@ class _MiniToothTile extends StatelessWidget {
       size: Size.square(size),
       painter: _ShieldToothPainter(
         highlighted: highlighted,
-        selected: isSelected,     // ✅
+        selected: isSelected,
         denture: markDenture,
         abut: markAbut,
         pontic: markPontic,
+        ringCrown: ringCrown,
+        twoHorizontal: twoHorizontal,
+        oneVertical: oneVertical,
+        fillRed: fillRed,
+        fillBlue: fillBlue,
       ),
     );
+  }
+}
+
+class _MiniFiveSurfacePainter extends CustomPainter {
+  final bool mesialOnRight;
+  final Map<String, SurfaceFill> fill;
+  final bool selected;
+  final bool highlighted;
+  final bool abut;
+  final bool pontic;
+
+  _MiniFiveSurfacePainter({
+    required this.mesialOnRight,
+    required this.fill,
+    required this.selected,
+    required this.highlighted,
+    this.abut = false,
+    this.pontic = false,
+  });
+
+  @override
+  void paint(Canvas canvas, Size s) {
+    final g = _Geom(s);
+
+    // 테두리/내부선
+    final outerStroke = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = (s.width * .04).clamp(1.0, 2.0)
+      ..color = highlighted ? Colors.deepPurple : Colors.black87;
+
+    final innerStroke = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = (s.width * .032).clamp(0.8, 1.6)
+      ..color = Colors.black54;
+
+    // 선택 강조(초록)
+    if (selected) {
+      final selStroke = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = (s.width * .08).clamp(1.6, 3.2)
+        ..color = Colors.green;
+      canvas.drawRRect(g.outerRRect.deflate(1), selStroke);
+    }
+
+    Paint paintOf(SurfaceFill f) {
+      switch (f) {
+        case SurfaceFill.cariesRed:
+          return Paint()..style = PaintingStyle.fill..color = Colors.red.withOpacity(.35);
+        case SurfaceFill.fillingBlue:
+          return Paint()..style = PaintingStyle.fill..color = Colors.blue.withOpacity(.28);
+        case SurfaceFill.toggleAmber:
+          return Paint()..style = PaintingStyle.fill..color = Colors.amber.withOpacity(.35);
+        case SurfaceFill.none:
+          return Paint()..style = PaintingStyle.stroke..color = Colors.transparent;
+      }
+    }
+
+    // 면 채우기
+    final l = fill['L'] ?? SurfaceFill.none;
+    final b = fill['B'] ?? SurfaceFill.none;
+    final o = fill['O'] ?? SurfaceFill.none;
+    final m = fill['M'] ?? SurfaceFill.none;
+    final d = fill['D'] ?? SurfaceFill.none;
+
+    if (l != SurfaceFill.none) canvas.drawPath(g.pathL, paintOf(l));
+    if (b != SurfaceFill.none) canvas.drawPath(g.pathB, paintOf(b));
+    if (o != SurfaceFill.none) canvas.drawRect(g.rectO, paintOf(o));
+
+    final leftFill  = mesialOnRight ? d : m;
+    final rightFill = mesialOnRight ? m : d;
+    if (leftFill  != SurfaceFill.none) canvas.drawPath(g.pathLeft,  paintOf(leftFill));
+    if (rightFill != SurfaceFill.none) canvas.drawPath(g.pathRight, paintOf(rightFill));
+
+    // 윤곽/내부선
+    canvas.drawRRect(g.outerRRect, outerStroke);
+    canvas.drawRect(g.rectO, innerStroke);
+
+    final oc = [g.outerRect.topLeft, g.outerRect.topRight, g.outerRect.bottomRight, g.outerRect.bottomLeft];
+    final ic = [g.rectO.topLeft, g.rectO.topRight, g.rectO.bottomRight, g.rectO.bottomLeft];
+    for (int i = 0; i < 4; i++) {
+      canvas.drawLine(ic[i], oc[i], innerStroke);
+    }
+
+    // 브릿지 마킹(파란색)
+    final blue = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = (s.width * .06).clamp(1.2, 2.4)
+      ..color = Colors.blueAccent;
+
+    if (abut) {
+      final ring = g.outerRect.deflate(s.width * .22);
+      canvas.drawRRect(RRect.fromRectAndRadius(ring, Radius.circular(ring.width * .2)), blue);
+    }
+    if (pontic) {
+      final y1 = s.height * .40, y2 = s.height * .60;
+      canvas.drawLine(Offset(s.width * .18, y1), Offset(s.width * .82, y1), blue);
+      canvas.drawLine(Offset(s.width * .18, y2), Offset(s.width * .82, y2), blue);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _MiniFiveSurfacePainter old) {
+    if (old.mesialOnRight != mesialOnRight ||
+        old.selected != selected ||
+        old.highlighted != highlighted ||
+        old.abut != abut ||
+        old.pontic != pontic) return true;
+    // fill 맵 비교
+    for (final k in kToothSurfaces) {
+      if ((old.fill[k] ?? SurfaceFill.none) != (fill[k] ?? SurfaceFill.none)) {
+        return true;
+      }
+    }
+    return false;
+  }
+}
+
+// 로컬 전용 지오메트리 헬퍼
+class _Geom {
+  late final Rect outerRect;
+  late final RRect outerRRect;
+  late final Rect rectO;
+  late final Path pathL, pathB, pathLeft, pathRight;
+
+  _Geom(Size s) {
+    outerRect  = Offset.zero & s;
+    outerRRect = RRect.fromRectAndRadius(
+      outerRect.deflate(1),
+      Radius.circular(s.width * .12),
+    );
+
+    final w = s.width, h = s.height;
+    final rectW = w * .66;  // 중앙 가로 직사각형 비율(방패형)
+    final rectH = h * .46;
+    rectO = Rect.fromCenter(center: outerRect.center, width: rectW, height: rectH);
+
+    pathL = Path()
+      ..moveTo(outerRect.left, outerRect.top)
+      ..lineTo(outerRect.right, outerRect.top)
+      ..lineTo(rectO.right, rectO.top)
+      ..lineTo(rectO.left,  rectO.top)
+      ..close();
+
+    pathB = Path()
+      ..moveTo(outerRect.left,  outerRect.bottom)
+      ..lineTo(outerRect.right, outerRect.bottom)
+      ..lineTo(rectO.right,     rectO.bottom)
+      ..lineTo(rectO.left,      rectO.bottom)
+      ..close();
+
+    pathLeft = Path()
+      ..moveTo(outerRect.left,  outerRect.top)
+      ..lineTo(rectO.left,      rectO.top)
+      ..lineTo(rectO.left,      rectO.bottom)
+      ..lineTo(outerRect.left,  outerRect.bottom)
+      ..close();
+
+    pathRight = Path()
+      ..moveTo(outerRect.right, outerRect.top)
+      ..lineTo(rectO.right,     rectO.top)
+      ..lineTo(rectO.right,     rectO.bottom)
+      ..lineTo(outerRect.right, outerRect.bottom)
+      ..close();
   }
 }
 
 /// 방패연 + 스팬 미니 마킹(개별 타일 버전)
 class _ShieldToothPainter extends CustomPainter {
   final bool highlighted;
-  final bool selected; // ✅ 선택 강조
-  final bool denture;  // 파란 타원
-  final bool abut;     // 파란 원(지대치)
-  final bool pontic;   // 파란 수평 2줄
+  final bool selected;
+  final bool denture;  // (지금은 항상 false로 넘어옴)
+  final bool abut;     // 지대치
+  final bool pontic;   // Pontic(수평 2줄)
+  final bool fillRed;
+  final bool fillBlue;
+
+  // ▼ 전역코드 마킹
+  final bool ringCrown;     // crown → 파란 링
+  final bool twoHorizontal; // status(MIS*) → 수평 2줄
+  final bool oneVertical;   // root(IPX*) → 수직 1줄
 
   _ShieldToothPainter({
     required this.highlighted,
@@ -3915,12 +4386,20 @@ class _ShieldToothPainter extends CustomPainter {
     required this.denture,
     required this.abut,
     required this.pontic,
+    this.fillRed = false,
+    this.fillBlue = false,
+    this.ringCrown = false,
+    this.twoHorizontal = false,
+    this.oneVertical = false,
   });
 
   @override
   void paint(Canvas canvas, Size s) {
     final outerRect = Offset.zero & s;
-    final rrect = RRect.fromRectAndRadius(outerRect.deflate(1), Radius.circular(s.width * .12));
+    final rrect = RRect.fromRectAndRadius(
+      outerRect.deflate(1),
+      Radius.circular(s.width * .12),
+    );
 
     final strokeW = (s.width * .04).clamp(1.0, 2.0);
     final stroke = Paint()
@@ -3933,7 +4412,7 @@ class _ShieldToothPainter extends CustomPainter {
       ..strokeWidth = (s.width * .032).clamp(0.8, 1.6)
       ..color = Colors.black54;
 
-    // 선택 강조(초록 테두리) 먼저 깔기
+    // 선택 강조
     if (selected) {
       final selStroke = Paint()
         ..style = PaintingStyle.stroke
@@ -3942,44 +4421,73 @@ class _ShieldToothPainter extends CustomPainter {
       canvas.drawRRect(rrect.deflate(1), selStroke);
     }
 
-    // 바깥 사각형
+    // 외곽 방패
     canvas.drawRRect(rrect, stroke);
 
-    // 중앙 가로 직사각형
+    // 중앙 직사각 & 요약 면 칠
     final w = s.width, h = s.height;
     final rectW = w * .66;
     final rectH = h * .46;
     final mid = Rect.fromCenter(center: outerRect.center, width: rectW, height: rectH);
+
+    if (fillRed || fillBlue) {
+      final fillPaint = Paint()
+        ..style = PaintingStyle.fill
+        ..color = (fillRed ? Colors.red : Colors.blue).withOpacity(.28);
+      canvas.drawRect(mid, fillPaint);
+    }
     canvas.drawRect(mid, innerStroke);
 
     // 대각선
-    final cornersOuter = [outerRect.topLeft, outerRect.topRight, outerRect.bottomRight, outerRect.bottomLeft];
-    final cornersInner = [mid.topLeft, mid.topRight, mid.bottomRight, mid.bottomLeft];
+    final oc = [outerRect.topLeft, outerRect.topRight, outerRect.bottomRight, outerRect.bottomLeft];
+    final ic = [mid.topLeft, mid.topRight, mid.bottomRight, mid.bottomLeft];
     for (int i = 0; i < 4; i++) {
-      canvas.drawLine(cornersInner[i], cornersOuter[i], innerStroke);
+      canvas.drawLine(ic[i], oc[i], innerStroke);
     }
 
-    // ===== 미니 스팬 마킹 =====
+    // ── 파란 마킹(스팬/전역) ───────────────────
     final blue = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = (s.width * .06).clamp(1.2, 2.4)
       ..color = Colors.blueAccent;
 
+    // denture(미니 링은 현재 미사용) — denture는 아치 오버레이로만
     if (denture) {
-      // 타원(살짝 안쪽)
       final oval = outerRect.deflate(s.width * .18);
       canvas.drawOval(oval, blue);
     }
+
+    // bridge 지대치 링
     if (abut) {
-      // 원(링)
       final ring = outerRect.deflate(s.width * .22);
       canvas.drawRRect(RRect.fromRectAndRadius(ring, Radius.circular(ring.width * .2)), blue);
     }
+
+    // bridge Pontic 수평 2줄
     if (pontic) {
-      // 수평 2줄
       final y1 = s.height * .40, y2 = s.height * .60;
       canvas.drawLine(Offset(s.width * .18, y1), Offset(s.width * .82, y1), blue);
       canvas.drawLine(Offset(s.width * .18, y2), Offset(s.width * .82, y2), blue);
+    }
+
+    // ▼ 전역코드 마킹 3종
+    // crown → 파란 링
+    if (ringCrown) {
+      final ring = outerRect.deflate(s.width * .22);
+      canvas.drawRRect(RRect.fromRectAndRadius(ring, Radius.circular(ring.width * .20)), blue);
+    }
+
+    // status(MIS*) → 수평 2줄
+    if (twoHorizontal) {
+      final y1 = s.height * .40, y2 = s.height * .60;
+      canvas.drawLine(Offset(s.width * .18, y1), Offset(s.width * .82, y1), blue);
+      canvas.drawLine(Offset(s.width * .18, y2), Offset(s.width * .82, y2), blue);
+    }
+
+    // root(IPX*) → 수직 1줄
+    if (oneVertical) {
+      final x = s.width * .50;
+      canvas.drawLine(Offset(x, s.height * .20), Offset(x, s.height * .80), blue);
     }
   }
 
@@ -3989,8 +4497,10 @@ class _ShieldToothPainter extends CustomPainter {
           old.selected != selected ||
           old.denture != denture ||
           old.abut != abut ||
-          old.pontic != pontic;
+          old.pontic != pontic ||
+          old.fillRed != fillRed ||
+          old.fillBlue != fillBlue ||
+          old.ringCrown != ringCrown ||
+          old.twoHorizontal != twoHorizontal ||
+          old.oneVertical != oneVertical;
 }
-
-
-
