@@ -440,6 +440,7 @@ class QuadrantZoomScreen extends StatelessWidget {
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       showDragHandle: true,
       builder: (_) => _Global635Sheet(fdi: fdi),
     );
@@ -449,6 +450,7 @@ class QuadrantZoomScreen extends StatelessWidget {
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       showDragHandle: true,
       builder: (_) => _Surface635Sheet(fdi: fdi, surface: surface),
     );
@@ -725,8 +727,15 @@ class _BigToothTile extends StatelessWidget {
 
       // ✔ 탭 업에서만 실행 → 롱프레스가 발생하면 탭이 취소됨
       onTapUp: (d) {
-        final key = _hitSurface(d.localPosition, Size.square(size), mesialOnRight: _mesialOnRight);
-        if (key != null) onOpenSurface(fdi, key);
+        final surface = surfaceAtPoint(
+          d.localPosition,
+          Size.square(size),
+          mesialOnRight: _mesialOnRight,
+          hitSlop: 12,
+        );
+        if (surface != null) {
+          onOpenSurface(fdi, surface);
+        }
       },
 
       // ✔ 롱프레스: 표면이면 메뉴, 아니면 전역 시트
@@ -766,6 +775,8 @@ class _BigToothTile extends StatelessWidget {
         size: Size.square(size),
         painter: _FiveSurfacePainter(
           mesialOnRight: _mesialOnRight,
+          abut: markAbut,
+          pontic: markPontic,
           fill: fill,
           ringCrown: markCrownRing,       // ← crown 전역코드 → 링
           twoHorizontal: markStatusMissing, // ← status(MIS*) → 수평 2줄
@@ -807,6 +818,9 @@ class _FiveSurfacePainter extends CustomPainter {
   final bool mesialOnRight;
   final Map<String, _SurfaceFill> fill;
 
+  final bool abut;     // 지대치 → 파란 링
+  final bool pontic;   // Pontic → 수평 2줄
+
   final bool ringCrown;     // crown 선택 시 파란 링
   final bool twoHorizontal; // status MIS* → 수평 2줄
   final bool oneVertical;   // root IPX* → 수직 1줄
@@ -814,6 +828,8 @@ class _FiveSurfacePainter extends CustomPainter {
   const _FiveSurfacePainter({
     required this.mesialOnRight,
     required this.fill,
+    this.abut = false,
+    this.pontic = false,
     this.ringCrown = false,
     this.twoHorizontal = false,
     this.oneVertical = false,
@@ -873,14 +889,14 @@ class _FiveSurfacePainter extends CustomPainter {
       canvas.drawLine(ic[i], oc[i], innerStroke);
     }
 
-    // ── ▼▼ 전역코드 마킹 오버레이(파란색) ───────────
+    // ===== 파란 마킹 공통 페인트 =====
     final blue = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = (s.width * .06).clamp(1.2, 2.4)
       ..color = Colors.blueAccent;
 
-    // crown → 파란 링
-    if (ringCrown) {
+    // ▼ crown 또는 지대치 중 하나라도 있으면 '한 번만' 링을 그림
+    if (ringCrown || abut) {
       final ring = g.outerRect.deflate(s.width * .18);
       canvas.drawRRect(
         RRect.fromRectAndRadius(ring, Radius.circular(ring.width * .20)),
@@ -888,14 +904,14 @@ class _FiveSurfacePainter extends CustomPainter {
       );
     }
 
-    // status(MIS*) → 수평 2줄
-    if (twoHorizontal) {
+    // ▼ Pontic(또는 status MIS*) → 수평 2줄
+    if (pontic || twoHorizontal) {
       final y1 = s.height * .40, y2 = s.height * .60;
       canvas.drawLine(Offset(s.width * .18, y1), Offset(s.width * .82, y1), blue);
       canvas.drawLine(Offset(s.width * .18, y2), Offset(s.width * .82, y2), blue);
     }
 
-    // root(IPX*) → 수직 1줄
+    // ▼ root(IPX*) → 수직 1줄
     if (oneVertical) {
       final x = s.width * .50;
       canvas.drawLine(Offset(x, s.height * .20), Offset(x, s.height * .80), blue);
@@ -906,6 +922,8 @@ class _FiveSurfacePainter extends CustomPainter {
   bool shouldRepaint(covariant _FiveSurfacePainter old) =>
       old.mesialOnRight != mesialOnRight ||
           !_mapEquals(old.fill, fill) ||
+          old.abut != abut ||
+          old.pontic != pontic ||
           old.ringCrown != ringCrown ||
           old.twoHorizontal != twoHorizontal ||
           old.oneVertical != oneVertical;
@@ -932,8 +950,8 @@ class _Geom {
     outerRRect = RRect.fromRectAndRadius(outerRect.deflate(1), Radius.circular(s.width * .12));
 
     final w = s.width, h = s.height;
-    final rectW = w * .66;  // 중앙 가로직사각 비율(방패연)
-    final rectH = h * .46;
+    final rectW = w * .54;  // 중앙 가로직사각 비율(방패연)
+    final rectH = h * .36;
     rectO = Rect.fromCenter(center: outerRect.center, width: rectW, height: rectH);
 
     pathL = Path()
@@ -975,86 +993,96 @@ class _Global635Sheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final kb = media.viewInsets.bottom;                  // ✅ 키보드 높이
+    // 기본 65% 높이를 쓰되, 키보드가 올라오면 그만큼 줄여서 겹치지 않게
+    final base = media.size.height * 0.65;
+    final sheetHeight = (base > media.size.height - kb - 24)
+        ? media.size.height - kb - 24
+        : base;
+
     final p = context.watch<DentalDataProvider>();
     final spec = p.getSpecRead(fdi);
     final noteCtrl = TextEditingController(text: spec?.toothNote ?? '');
 
-    final sheetHeight = MediaQuery.of(context).size.height * 0.65;
-
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-        child: SizedBox(
-          height: sheetHeight,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Tooth $fdi — Global codes', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
-              Expanded(
-                child: ListView(
-                  children: k635GlobalCodes.entries.map((e) {
-                    final group = e.key;
-                    final codes = e.value;
-                    final picked = p.getSpecRead(fdi)?.global[group] ?? const <String>[];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(group.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w700)),
-                          const SizedBox(height: 4),
-                          Wrap(
-                            spacing: 6, runSpacing: 6,
-                            children: codes.map((c) {
-                              final sel = picked.contains(c);
-                              return FilterChip(
-                                label: Text(c),
-                                selected: sel,
-                                // ⬇️ 코드 칩은 즉시 반영
-                                onSelected: (_) => p.toggleGlobalCode(fdi, group, c),
-                              );
-                            }).toList(),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-              const Divider(),
-              const Text('자연어 메모 (코드는 위에 칩으로 즉시 반영, 메모는 저장 버튼을 눌러야 반영됩니다)'),
-              const SizedBox(height: 6),
-              TextField(
-                controller: noteCtrl,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  hintText: '예: 교합 개방감 있음. 회전 양상 관찰...',
-                  border: OutlineInputBorder(),
-                ),
-                // ⛔️ onChanged 제거: 저장 버튼에서만 반영
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    // 닫기 = 미저장
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('닫기'),
+    return AnimatedPadding(                                  // ✅ 부드럽게 위로 올림
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      padding: EdgeInsets.only(bottom: kb),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          child: SizedBox(
+            height: sheetHeight,                              // ✅ 동적 높이
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Tooth $fdi — Global codes',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: ListView(
+                    keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,   // ✅ 스크롤로 키보드 내림
+                    children: k635GlobalCodes.entries.map((e) {
+                      final group = e.key;
+                      final codes = e.value;
+                      final picked = p.getSpecRead(fdi)?.global[group] ?? const <String>[];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(group.toUpperCase(),
+                                style: const TextStyle(fontWeight: FontWeight.w700)),
+                            const SizedBox(height: 4),
+                            Wrap(
+                              spacing: 6, runSpacing: 6,
+                              children: codes.map((c) {
+                                final sel = picked.contains(c);
+                                return FilterChip(
+                                  label: Text(c),
+                                  selected: sel,
+                                  onSelected: (_) => p.toggleGlobalCode(fdi, group, c),
+                                );
+                              }).toList(),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
                   ),
-                  const SizedBox(width: 8),
-                  FilledButton(
-                    // 저장 = 메모 반영 후 닫기
-                    onPressed: () {
-                      p.setToothNote635(fdi, noteCtrl.text.trim());
-                      Navigator.pop(context);
-                    },
-                    child: const Text('저장'),
+                ),
+                const Divider(),
+                const Text('자연어 메모 (코드는 위에 칩으로 즉시 반영, 메모는 저장 버튼을 눌러야 반영됩니다)'),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: noteCtrl,
+                  maxLines: 3,
+                  keyboardType: TextInputType.multiline,           // ✅ 멀티라인
+                  textInputAction: TextInputAction.newline,
+                  decoration: const InputDecoration(
+                    hintText: '예: 교합 개방감 있음. 회전 양상 관찰...',
+                    border: OutlineInputBorder(),
                   ),
-                ],
-              ),
-            ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기')),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: () {
+                        p.setToothNote635(fdi, noteCtrl.text.trim());
+                        Navigator.pop(context);
+                      },
+                      child: const Text('저장'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1078,65 +1106,81 @@ class _Surface635Sheet extends StatelessWidget {
     final initNote = spec?.surfaceNote[surface] ?? '';
     final noteCtrl = TextEditingController(text: initNote);
 
-    final sheetHeight = MediaQuery.of(context).size.height * 0.65;
+    // ✅ 키보드 높이만큼 안전하게 올리기 + 동적 높이
+    final media = MediaQuery.of(context);
+    final kb = media.viewInsets.bottom;                 // 키보드 높이
+    final base = media.size.height * 0.65;              // 기본 시트 높이
+    final sheetHeight = (base > media.size.height - kb - 24)
+        ? media.size.height - kb - 24
+        : base;
 
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-        child: SizedBox(
-          height: sheetHeight,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Tooth $fdi — Surface $surface', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
-              Expanded(
-                child: ListView(
-                  children: [
-                    for (final grp in ['fillings','periodontium'])
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: _SurfaceGroupChips(
-                          fdi: fdi,
-                          surface: surface,
-                          group: grp,
-                          codes: k635SurfaceCodes[grp] ?? const [],
+    return AnimatedPadding(                              // ✅ 키보드에 맞춰 부드럽게 위로
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      padding: EdgeInsets.only(bottom: kb),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          child: SizedBox(
+            height: sheetHeight,                         // ✅ 동적 높이 적용
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Tooth $fdi — Surface $surface',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: ListView(
+                    keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag, // ✅ 드래그로 키보드 내리기
+                    children: [
+                      for (final grp in ['fillings','periodontium'])
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: _SurfaceGroupChips(
+                            fdi: fdi,
+                            surface: surface,
+                            group: grp,
+                            codes: k635SurfaceCodes[grp] ?? const [],
+                          ),
                         ),
-                      ),
+                    ],
+                  ),
+                ),
+                const Divider(),
+                const Text('자연어 메모 (코드 칩 선택은 즉시 반영, 메모는 저장 버튼을 눌러야 반영됩니다)'),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: noteCtrl,
+                  maxLines: 3,
+                  keyboardType: TextInputType.multiline,  // ✅ 멀티라인
+                  textInputAction: TextInputAction.newline,
+                  scrollPadding: const EdgeInsets.only(bottom: 80),
+                  decoration: const InputDecoration(
+                    hintText: '예: 교합면 소와열 우식 의심...',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context), // 미저장 닫기
+                      child: const Text('닫기'),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: () {
+                        p.setSurfaceNote635(fdi, surface, noteCtrl.text.trim()); // 저장
+                        Navigator.pop(context);
+                      },
+                      child: const Text('저장'),
+                    ),
                   ],
                 ),
-              ),
-              const Divider(),
-              const Text('자연어 메모 (코드 칩 선택은 즉시 반영, 메모는 저장 버튼을 눌러야 반영됩니다)'),
-              const SizedBox(height: 6),
-              TextField(
-                controller: noteCtrl,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  hintText: '예: 교합면 소와열 우식 의심...',
-                  border: OutlineInputBorder(),
-                ),
-                // ⛔️ onChanged 제거
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context), // 미저장 닫기
-                    child: const Text('닫기'),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton(
-                    onPressed: () {
-                      p.setSurfaceNote635(fdi, surface, noteCtrl.text.trim()); // 저장
-                      Navigator.pop(context);
-                    },
-                    child: const Text('저장'),
-                  ),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -1244,3 +1288,43 @@ class _CodeSection extends StatelessWidget {
   }
 }
 
+/// 표면 판정: O/L/B 우선 → 그 다음 M/D hitSlop 밴드 → 마지막에 좌/우 폴리곤
+String? surfaceAtPoint(
+    Offset local,
+    Size size, {
+      required bool mesialOnRight,
+      double? hitSlop, // null이면 타일 크기 비례
+    }) {
+  final g = _Geom(size);
+
+  // 1) 정확 판정 (O/L/B)
+  if (g.rectO.contains(local)) return 'O';
+  if (g.pathL.contains(local)) return 'L';
+  if (g.pathB.contains(local)) return 'B';
+
+  // 2) 관대한 M/D: 중앙 사각형 좌/우 가장자리 부근 + 수직 게이트 안에서만
+  final double base = (size.width * 0.08).clamp(6.0, 12.0);
+  final double slop = (hitSlop ?? base).toDouble();
+
+  // 수직 게이트: 중앙 사각형 높이에 약간 여유를 준 범위에서만 M/D 슬롭 인정
+  final gateTop = g.rectO.top - slop * 0.8;
+  final gateBottom = g.rectO.bottom + slop * 0.8;
+  final inGateY = (local.dy >= gateTop && local.dy <= gateBottom);
+
+  if (inGateY) {
+    // 왼쪽 슬롭
+    if (local.dx <= g.rectO.left + slop && local.dx >= g.outerRect.left) {
+      return mesialOnRight ? 'D' : 'M';
+    }
+    // 오른쪽 슬롭
+    if (local.dx >= g.rectO.right - slop && local.dx <= g.outerRect.right) {
+      return mesialOnRight ? 'M' : 'D';
+    }
+  }
+
+  // 3) 폴리곤 최종 판정(정밀)
+  if (g.pathLeft.contains(local))  return mesialOnRight ? 'D' : 'M';
+  if (g.pathRight.contains(local)) return mesialOnRight ? 'M' : 'D';
+
+  return null;
+}

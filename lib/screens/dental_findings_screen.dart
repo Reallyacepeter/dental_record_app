@@ -3178,6 +3178,27 @@ class _DentalFindingsScreenState extends State<DentalFindingsScreen> {
   static const lowerRightPrim = [85, 84, 83, 82, 81];
   static const lowerLeftPrim  = [71, 72, 73, 74, 75];
 
+  // 같은 치아에 다른 타입(span)이 이미 있는지 검사
+  bool _hasTypeConflict(DentalDataProvider p, Iterable<int> teeth, DentalSpanType creating) {
+    final set = teeth.toSet();
+    return p.spans.any((sp) => sp.type != creating && sp.teeth.any(set.contains));
+  }
+
+// 어느 치아가 충돌하는지 수집(스낵바 안내용)
+  List<int> _collectTypeConflictTeeth(DentalDataProvider p, Iterable<int> teeth, DentalSpanType creating) {
+    final set = teeth.toSet();
+    final hit = <int>{};
+    for (final sp in p.spans) {
+      if (sp.type == creating) continue;
+      for (final t in sp.teeth) {
+        if (set.contains(t)) hit.add(t);
+      }
+    }
+    final list = hit.toList()..sort();
+    return list;
+  }
+
+
   @override
   Widget build(BuildContext context) {
     final p = context.watch<DentalDataProvider>();
@@ -3401,7 +3422,8 @@ class _DentalFindingsScreenState extends State<DentalFindingsScreen> {
     // 간단한 코드 선택(선택 사항)
     const codes = ['FUD','HUD','PLD','PUD','CLA','FOA','SPL','ROA','EDE','HLD','FLD'];
     String? pick;
-    await showDialog(
+
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => StatefulBuilder(
         builder: (ctx, setStateDlg) => AlertDialog(
@@ -3415,17 +3437,27 @@ class _DentalFindingsScreenState extends State<DentalFindingsScreen> {
             )).toList(),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
-            FilledButton(
-              onPressed: () { Navigator.pop(ctx); },
-              child: const Text('확인'),
-            ),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('확인')),
           ],
         ),
       ),
     );
+
+    // ⛔ 취소/백버튼이면 아무것도 하지 않음
+    if (confirmed != true) return;
     if (selectedTeeth.isEmpty) return;
-    p.addDentureSpan(selectedTeeth.toList(), code: pick);
+
+    // ✅ 다른 타입(= Bridge)과 충돌 검사
+    if (_hasTypeConflict(p, selectedTeeth, DentalSpanType.dentureOrtho)) {
+      final clash = _collectTypeConflictTeeth(p, selectedTeeth, DentalSpanType.dentureOrtho);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('다음 치아는 이미 Bridge 스팬에 포함되어 있어 Denture를 만들 수 없습니다: ${clash.join(", ")}')),
+      );
+      return;
+    }
+
+    p.addDentureSpan(selectedTeeth.toList(), code: pick); // pick은 null 가능(선택 안 해도 됨)
     setState(() { selectedTeeth.clear(); multiMode = false; multiArchUpper = null; });
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Denture/Ortho 스팬이 추가되었습니다.')));
   }
@@ -3436,7 +3468,7 @@ class _DentalFindingsScreenState extends State<DentalFindingsScreen> {
     final Set<int> abut = {teeth.first, teeth.last};
     final Set<int> pont = teeth.where((t) => !abut.contains(t)).toSet();
 
-    await showDialog(
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => StatefulBuilder(
         builder: (ctx, setStateDlg) => AlertDialog(
@@ -3445,6 +3477,12 @@ class _DentalFindingsScreenState extends State<DentalFindingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                const Text(
+                  '※ 보통 브릿지는 양 끝이 지대치(Abutment)입니다. '
+                      '다만 파손/칸틸레버 등 예외 표현을 위해 제한하지 않습니다.',
+                  style: TextStyle(color: Colors.black54),
+                ),
+                const SizedBox(height: 8),
                 const Text('지대치(Abutments)'),
                 Wrap(
                   spacing: 8, runSpacing: 8,
@@ -3453,12 +3491,8 @@ class _DentalFindingsScreenState extends State<DentalFindingsScreen> {
                     selected: abut.contains(t),
                     onSelected: (sel) {
                       setStateDlg(() {
-                        if (sel) {
-                          abut.add(t);
-                          pont.remove(t);
-                        } else {
-                          abut.remove(t);
-                        }
+                        if (sel) { abut.add(t); pont.remove(t); }
+                        else { abut.remove(t); }
                       });
                     },
                   )).toList(),
@@ -3472,12 +3506,8 @@ class _DentalFindingsScreenState extends State<DentalFindingsScreen> {
                     selected: pont.contains(t),
                     onSelected: (sel) {
                       setStateDlg(() {
-                        if (sel) {
-                          pont.add(t);
-                          abut.remove(t);
-                        } else {
-                          pont.remove(t);
-                        }
+                        if (sel) { pont.add(t); abut.remove(t); }
+                        else { pont.remove(t); }
                       });
                     },
                   )).toList(),
@@ -3488,13 +3518,9 @@ class _DentalFindingsScreenState extends State<DentalFindingsScreen> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
             FilledButton(
-              onPressed: (abut.isEmpty || pont.isEmpty)
-                  ? null
-                  : () {
-                Navigator.pop(ctx);
-              },
+              onPressed: (abut.isEmpty || pont.isEmpty) ? null : () => Navigator.pop(ctx, true),
               child: const Text('확인'),
             ),
           ],
@@ -3502,14 +3528,22 @@ class _DentalFindingsScreenState extends State<DentalFindingsScreen> {
       ),
     );
 
+    // ⛔ 취소면 생성 안 함
+    if (confirmed != true) return;
     if (selectedTeeth.isEmpty) return;
     if (abut.isEmpty || pont.isEmpty) return;
 
-    p.addBridgeSpan(
-      selectedFdi: teeth,
-      abutments: abut,
-      pontics: pont,
-    );
+    // ✅ 다른 타입(= Denture)과 충돌 검사 — 브리지는 지대치/pontic 모두 포함해 검사
+    final union = {...teeth, ...abut, ...pont};
+    if (_hasTypeConflict(p, union, DentalSpanType.bridge)) {
+      final clash = _collectTypeConflictTeeth(p, union, DentalSpanType.bridge);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('다음 치아는 이미 Denture/Ortho 스팬에 포함되어 있어 Bridge를 만들 수 없습니다: ${clash.join(", ")}')),
+      );
+      return;
+    }
+
+    p.addBridgeSpan(selectedFdi: teeth, abutments: abut, pontics: pont);
     setState(() { selectedTeeth.clear(); multiMode = false; multiArchUpper = null; });
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bridge 스팬이 추가되었습니다.')));
   }
@@ -3526,8 +3560,9 @@ class _DentalFindingsScreenState extends State<DentalFindingsScreen> {
       return;
     }
 
-    await showDialog(
+    final confirmed = await showDialog<bool>(
       context: context,
+      barrierDismissible: false, // 바깥 탭으로 닫혀도 삭제되지 않도록
       builder: (_) => StatefulBuilder(
         builder: (ctx, setStateDlg) => AlertDialog(
           title: const Text('스팬 삭제'),
@@ -3552,9 +3587,12 @@ class _DentalFindingsScreenState extends State<DentalFindingsScreen> {
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false), // ❌ 취소 → false
+              child: const Text('취소'),
+            ),
             FilledButton(
-              onPressed: (!rmDent && !rmBridge) ? null : () => Navigator.pop(ctx),
+              onPressed: (!rmDent && !rmBridge) ? null : () => Navigator.pop(ctx, true), // ✅ 삭제 → true
               child: const Text('삭제'),
             ),
           ],
@@ -3562,8 +3600,10 @@ class _DentalFindingsScreenState extends State<DentalFindingsScreen> {
       ),
     );
 
-    if (!rmDent && !rmBridge) return;
+// ❗ 사용자가 취소했으면 삭제 로직 진입 금지
+    if (confirmed != true) return;
 
+// 여기서부터 실제 삭제
     final removed = p.removeSpansIntersecting(
       selectedTeeth,
       removeDenture: rmDent,
@@ -3673,14 +3713,6 @@ class _MultiSelectToolbar extends StatelessWidget {
                     visualDensity: VisualDensity.compact,
                   ),
                 ],
-                if (!compact) ...[
-                  const SizedBox(width: 8),
-                  TextButton.icon(
-                    onPressed: onClear,
-                    icon: const Icon(Icons.clear_all),
-                    label: const Text('선택 해제'),
-                  ),
-                ],
               ],
             );
 
@@ -3703,6 +3735,11 @@ class _MultiSelectToolbar extends StatelessWidget {
                   icon: const Icon(Icons.backspace),
                   tooltip: '선택 해제',
                 ),
+                IconButton(
+                  onPressed: onRemoveSpans,
+                  icon: const Icon(Icons.delete_sweep),
+                  tooltip: '스팬 삭제',
+                ),
               ],
             )
                 : Row(
@@ -3718,6 +3755,13 @@ class _MultiSelectToolbar extends StatelessWidget {
                   onPressed: onMakeBridge,
                   icon: const Icon(Icons.linear_scale),
                   label: const Text('Bridge'),
+                ),
+                const SizedBox(width: 8),
+                // ✅ 넓은 화면에도 '선택 해제' 추가 — 순서 동일 유지
+                OutlinedButton.icon(
+                  onPressed: onClear,
+                  icon: const Icon(Icons.clear_all),
+                  label: const Text('선택 해제'),
                 ),
                 const SizedBox(width: 8),
                 OutlinedButton.icon(
@@ -4089,11 +4133,33 @@ class _TeethRow extends StatelessWidget {
             .map((e) => e.toUpperCase())
             .any((c) => c == 'IPX' || c.startsWith('IPX')); // IPX*
 
-        // 스팬 마커(브릿지/덴쳐) 계산
+// 스팬 마커(브릿지/덴쳐)
         final m = markers[fdi]!;
-        final bool ringAbutOrCrown = m.abut || ringCrown;          // 링: 지대치 OR crown
-        final bool ponticOrMissing = m.pontic || twoHorizontal;    // 수평2줄: pontic OR MIS
-        const bool drawDentureSmall = false;                        // 덴쳐 작은동그라미는 축소뷰에서 그리지 않음
+        final bool ringAbutOrCrown = m.abut || ringCrown;
+        final bool ponticOrMissing = m.pontic || twoHorizontal;
+        const bool drawDentureSmall = false;
+
+// ✅ 축소뷰용 “각 면별” fill 계산
+        final Map<String, SurfaceFill> miniFill = {
+          for (final s in kToothSurfaces) s: SurfaceFill.none,
+        };
+        if (spec != null) {
+          for (final s in kToothSurfaces) {
+            final list = (spec.surface[s]?['fillings'] ?? const <String>[]) as List<String>;
+            final hasCaries = list.any(isCariesCode);
+            if (hasCaries) {
+              miniFill[s] = SurfaceFill.cariesRed;
+            } else if (list.isNotEmpty) {
+              miniFill[s] = SurfaceFill.fillingBlue;
+            }
+          }
+        }
+
+// FDI → mesialOnRight (1,4,5,8군 true)
+        bool mesialOnRightLocal(int f) {
+          final q = f ~/ 10;
+          return q == 1 || q == 4 || q == 5 || q == 8;
+        }
 
         return Opacity(
           opacity: opacity,
@@ -4112,16 +4178,19 @@ class _TeethRow extends StatelessWidget {
                     size: tile,
                     highlighted: hasAnyDetail,
                     isSelected: isSelectedNow,
-                    // 스팬/전역 마킹
+                    // ✅ 면별 채우기 & 방향
+                    miniFill: miniFill,
+                    mesialOnRight: mesialOnRightLocal(fdi),
+
+                    // 파란 마킹
                     markDenture: drawDentureSmall,
                     markAbut: ringAbutOrCrown,
                     markPontic: ponticOrMissing,
+
+                    // 전역코드 마킹
                     ringCrown: ringCrown,
                     twoHorizontal: twoHorizontal,
                     oneVertical: oneVertical,
-                    // 요약 칠
-                    fillRed: hasCariesAny,
-                    fillBlue: !hasCariesAny && hasFillingAny,
                   ),
                 ),
                 if (!numbersOnTop) _ToothNumber(fdi, tile),
@@ -4153,50 +4222,50 @@ class _MiniToothTile extends StatelessWidget {
   final int fdi;
   final double size;
   final bool highlighted;
-  final bool isSelected;   // 다중선택 강조
-  final bool markDenture;  // 축소뷰에선 사용 안함(항상 false로 넘김)
+  final bool isSelected;
+
+  // ✅ 각 면별 채우기 + 방향
+  final Map<String, SurfaceFill> miniFill;
+  final bool mesialOnRight;
+
+  // 스팬/전역 마킹
+  final bool markDenture;
   final bool markAbut;
   final bool markPontic;
-
-  // ▼ 전역코드 마킹 (축소뷰에도 표시)
-  final bool ringCrown;     // crown → 파란 링
-  final bool twoHorizontal; // status(MIS*) → 수평 2줄
-  final bool oneVertical;   // root(IPX*) → 수직 1줄
-
-  // ▼ 요약 칠(빨강/파랑)
-  final bool fillRed;       // 우식 있음
-  final bool fillBlue;      // 충전 있음(우식 없을 때)
+  final bool ringCrown;
+  final bool twoHorizontal;
+  final bool oneVertical;
 
   const _MiniToothTile({
     required this.fdi,
     required this.size,
     this.highlighted = false,
     this.isSelected = false,
+    required this.miniFill,
+    required this.mesialOnRight,
     this.markDenture = false,
     this.markAbut = false,
     this.markPontic = false,
     this.ringCrown = false,
     this.twoHorizontal = false,
     this.oneVertical = false,
-    this.fillRed = false,
-    this.fillBlue = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
       size: Size.square(size),
-      painter: _ShieldToothPainter(
-        highlighted: highlighted,
+      painter: _MiniFiveSurfacePainter(
+        mesialOnRight: mesialOnRight,
+        fill: miniFill,
         selected: isSelected,
-        denture: markDenture,
+        highlighted: highlighted,
+        // 스팬/전역 마킹 전달
         abut: markAbut,
         pontic: markPontic,
         ringCrown: ringCrown,
         twoHorizontal: twoHorizontal,
         oneVertical: oneVertical,
-        fillRed: fillRed,
-        fillBlue: fillBlue,
       ),
     );
   }
@@ -4210,6 +4279,10 @@ class _MiniFiveSurfacePainter extends CustomPainter {
   final bool abut;
   final bool pontic;
 
+  final bool ringCrown;     // crown → 링
+  final bool twoHorizontal; // MIS* → 수평 2줄
+  final bool oneVertical;   // IPX* → 수직 1줄
+
   _MiniFiveSurfacePainter({
     required this.mesialOnRight,
     required this.fill,
@@ -4217,6 +4290,9 @@ class _MiniFiveSurfacePainter extends CustomPainter {
     required this.highlighted,
     this.abut = false,
     this.pontic = false,
+    this.ringCrown = false,
+    this.twoHorizontal = false,
+    this.oneVertical = false,
   });
 
   @override
@@ -4282,12 +4358,39 @@ class _MiniFiveSurfacePainter extends CustomPainter {
       canvas.drawLine(ic[i], oc[i], innerStroke);
     }
 
-    // 브릿지 마킹(파란색)
     final blue = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = (s.width * .06).clamp(1.2, 2.4)
       ..color = Colors.blueAccent;
 
+    // bridge 지대치 링
+    if (abut) {
+      final ring = g.outerRect.deflate(s.width * .22);
+      canvas.drawRRect(RRect.fromRectAndRadius(ring, Radius.circular(ring.width * .2)), blue);
+    }
+    // bridge Pontic 수평 2줄
+    if (pontic) {
+      final y1 = s.height * .40, y2 = s.height * .60;
+      canvas.drawLine(Offset(s.width * .18, y1), Offset(s.width * .82, y1), blue);
+      canvas.drawLine(Offset(s.width * .18, y2), Offset(s.width * .82, y2), blue);
+    }
+
+    // ✅ 전역코드 마킹 3종
+    if (ringCrown) {
+      final ring = g.outerRect.deflate(s.width * .22);
+      canvas.drawRRect(RRect.fromRectAndRadius(ring, Radius.circular(ring.width * .20)), blue);
+    }
+    if (twoHorizontal) {
+      final y1 = s.height * .40, y2 = s.height * .60;
+      canvas.drawLine(Offset(s.width * .18, y1), Offset(s.width * .82, y1), blue);
+      canvas.drawLine(Offset(s.width * .18, y2), Offset(s.width * .82, y2), blue);
+    }
+    if (oneVertical) {
+      final x = s.width * .50;
+      canvas.drawLine(Offset(x, s.height * .20), Offset(x, s.height * .80), blue);
+    }
+
+    //브릿지 마킹
     if (abut) {
       final ring = g.outerRect.deflate(s.width * .22);
       canvas.drawRRect(RRect.fromRectAndRadius(ring, Radius.circular(ring.width * .2)), blue);
@@ -4305,12 +4408,12 @@ class _MiniFiveSurfacePainter extends CustomPainter {
         old.selected != selected ||
         old.highlighted != highlighted ||
         old.abut != abut ||
-        old.pontic != pontic) return true;
-    // fill 맵 비교
+        old.pontic != pontic ||
+        old.ringCrown != ringCrown ||
+        old.twoHorizontal != twoHorizontal ||
+        old.oneVertical != oneVertical) return true;
     for (final k in kToothSurfaces) {
-      if ((old.fill[k] ?? SurfaceFill.none) != (fill[k] ?? SurfaceFill.none)) {
-        return true;
-      }
+      if ((old.fill[k] ?? SurfaceFill.none) != (fill[k] ?? SurfaceFill.none)) return true;
     }
     return false;
   }

@@ -2073,6 +2073,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:collection';                 // ← 추가
+import '../services/local_store.dart';    // ← 추가 (Hive 래퍼 사용 시)
+
 
 /// 5면 키 (중앙 O, 위 L, 아래 B, 좌/우는 M/D)
 const List<String> kToothSurfaces = ['O', 'M', 'D', 'L', 'B'];
@@ -2180,10 +2183,31 @@ class SpecificData {
   }
 }
 
-
 class DentalDataProvider extends ChangeNotifier {
+
+  DentalDataProvider({bool listenIncidentLock = true}) {
+    if (listenIncidentLock) _listenIncidentLock();
+  }
+
   // 635 Specific Data (인스턴스 보관)
   final Map<int, SpecificData> _spec635 = <int, SpecificData>{};
+  final List<DentalSpan> _spans = <DentalSpan>[];                 // ← 추가
+  UnmodifiableListView<DentalSpan> get spans => UnmodifiableListView(_spans); // ← 추가
+
+  Timer? _saveDebounce;                                           // ← 추가(자동 저장 디바운스)
+  static int _idSeed = 0;                                         // ← 추가
+
+  void _scheduleAutosave() {                                       // ← 추가
+    _saveDebounce?.cancel();
+    _saveDebounce = Timer(const Duration(milliseconds: 300), () async {
+      await LocalStore.saveDentalState(toMap());
+    });
+  }
+
+  void _markDirty() {                                              // ← 추가
+    _scheduleAutosave();
+    notifyListeners();
+  }
 
   /// 읽기 전용 getter (없으면 null)
   SpecificData? getSpecRead(int fdi) => _spec635[fdi];
@@ -2250,18 +2274,16 @@ class DentalDataProvider extends ChangeNotifier {
   FirebaseFirestore.instance.collection('config').doc('incidentLock');
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _lockSub;
 
-  DentalDataProvider() {
-    _listenIncidentLock();
-  }
-
   void _listenIncidentLock() {
     _lockSub = _lockDoc.snapshots().listen((snap) {
       final d = snap.data();
       if (d == null) return;
-      incidentLockEnabled = (d['enabled'] ?? false) as bool;
-      lockedPlace = (d['place'] ?? '') as String;
-      lockedNature = (d['nature'] ?? '') as String;
-      notifyListeners();
+      _withoutAutosave(() {
+        incidentLockEnabled = (d['enabled'] ?? false) as bool;
+        lockedPlace = (d['place'] ?? '') as String;
+        lockedNature = (d['nature'] ?? '') as String;
+        super.notifyListeners(); // ← 저장 안 함
+      });
     });
   }
 
@@ -2288,6 +2310,7 @@ class DentalDataProvider extends ChangeNotifier {
   @override
   void dispose() {
     _lockSub?.cancel();
+    _saveDebounce?.cancel();
     super.dispose();
   }
 
@@ -2320,13 +2343,12 @@ class DentalDataProvider extends ChangeNotifier {
   }
 
   // ----------------- STEP 2: Denture/Bridge 스팬 -----------------
-  final List<DentalSpan> spans = <DentalSpan>[];
 
-  String _randId() => DateTime.now().microsecondsSinceEpoch.toString();
+  String _randId() => 'sp_${DateTime.now().microsecondsSinceEpoch}_${_idSeed++}';
 
   List<DentalSpan> spansIntersecting(Iterable<int> fdis) {
     final set = fdis.toSet();
-    return spans.where((sp) => sp.teeth.any(set.contains)).toList();
+    return _spans.where((sp) => sp.teeth.any(set.contains)).toList();
   }
 
   bool _isUpperFdi(int fdi) {
@@ -2335,12 +2357,18 @@ class DentalDataProvider extends ChangeNotifier {
   }
 
   bool _allSameArch(Iterable<int> fdis) {
-    if (fdis.isEmpty) return true;
-    final first = _isUpperFdi(fdis.first);
-    for (final t in fdis) {
-      if (_isUpperFdi(t) != first) return false;
+    bool? first;
+    for (final f in fdis) {
+      final up = _isUpperFdi(f);
+      first ??= up;
+      if (up != first) return false;
     }
     return true;
+  }
+
+  bool _hasTypeConflictInternal(Iterable<int> teeth, DentalSpanType creating) {
+    final set = teeth.toSet();
+    return _spans.any((sp) => sp.type != creating && sp.teeth.any(set.contains));
   }
 
   void addDentureSpan(List<int> selectedFdi, {String? code}) {
@@ -2349,13 +2377,19 @@ class DentalDataProvider extends ChangeNotifier {
       debugPrint('❌ 상/하악 혼합 스팬 금지');
       return;
     }
-    spans.add(DentalSpan(
+    // ▼ 추가: Bridge와 충돌 방지
+    if (_hasTypeConflictInternal(selectedFdi, DentalSpanType.dentureOrtho)) {
+      debugPrint('❌ Denture/Ortho 생성 실패: 이미 Bridge 스팬과 겹칩니다.');
+      return;
+    }
+
+    _spans.add(DentalSpan(
       id: _randId(),
       type: DentalSpanType.dentureOrtho,
       teeth: Set<int>.from(selectedFdi),
       code: code,
     ));
-    notifyListeners();
+    _markDirty(); // notifyListeners() 대신
   }
 
   void addBridgeSpan({
@@ -2365,13 +2399,21 @@ class DentalDataProvider extends ChangeNotifier {
     String? code,
   }) {
     if (selectedFdi.isEmpty || abutments.isEmpty || pontics.isEmpty) return;
+
     // 전체 치아(지대치+pontic 포함) 같은 악궁만 허용
     final union = {...selectedFdi, ...abutments, ...pontics};
     if (!_allSameArch(union)) {
       debugPrint('❌ 상/하악 혼합 브리지 금지');
       return;
     }
-    spans.add(DentalSpan(
+
+    // ▼ 추가: Denture와 충돌 방지
+    if (_hasTypeConflictInternal(union, DentalSpanType.bridge)) {
+      debugPrint('❌ Bridge 생성 실패: 이미 Denture/Ortho 스팬과 겹칩니다.');
+      return;
+    }
+
+    _spans.add(DentalSpan(
       id: _randId(),
       type: DentalSpanType.bridge,
       teeth: Set<int>.from(selectedFdi),
@@ -2379,27 +2421,27 @@ class DentalDataProvider extends ChangeNotifier {
       pontics: pontics,
       code: code,
     ));
-    notifyListeners();
+    _markDirty(); // notifyListeners() 대신
   }
 
   void removeSpan(String id) {
-    spans.removeWhere((e) => e.id == id);
-    notifyListeners();
+    _spans.removeWhere((e) => e.id == id);
+    _markDirty(); // notifyListeners() 대신
   }
 
   /// 선택된 치아와 교집합이 있는 스팬 일괄 삭제 (툴바의 '스팬 삭제'에서 사용)
   int removeSpansIntersecting(Set<int> targets,
       {bool removeDenture = true, bool removeBridge = true}) {
-    final before = spans.length;
-    spans.removeWhere((sp) {
+    final before = _spans.length;
+    _spans.removeWhere((sp) {
       final hit = sp.teeth.any(targets.contains);
       if (!hit) return false;
       if (sp.type == DentalSpanType.dentureOrtho && !removeDenture) return false;
       if (sp.type == DentalSpanType.bridge && !removeBridge) return false;
       return true;
     });
-    final removed = before - spans.length;
-    if (removed > 0) notifyListeners();
+    final removed = before - _spans.length;
+    if (removed > 0) _markDirty(); // notifyListeners() 대신
     return removed;
   }
 
@@ -2656,28 +2698,154 @@ class DentalDataProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void loadFromMap(Map<String, dynamic> m) {
-    spans
-      ..clear()
-      ..addAll(((m['spans'] as List?) ?? const [])
-          .map((e) => DentalSpan.fromJson(Map<String, dynamic>.from(e))));
-    _spec635
-      ..clear()
-      ..addAll(((m['spec635'] as Map?) ?? const {})
-          .map((k, v) => MapEntry(int.parse(k.toString()), SpecificData.fromJson(Map<String, dynamic>.from(v)))));
-    // 필요시 fdiToothData 등 다른 필드도 복원
-    notifyListeners();
+  // ----------------- Reset / Save -----------------
+  Map<String, dynamic> toMap() {
+    return {
+      'recordType': recordType,
+      'amNumber': amNumber,
+      'pmNumber': pmNumber,
+      'placeOfDisaster': placeOfDisaster,   // 저장은 실제 필드로
+      'natureOfDisaster': natureOfDisaster, // 저장은 실제 필드로
+      'dateOfDisaster': dateOfDisaster?.toIso8601String(),
+      'gender': gender,
+
+      'fdiToothData': {
+        for (final e in fdiToothData.entries) e.key.toString(): e.value
+      },
+
+      'spans': _spans.map((e) => e.toJson()).toList(),
+      'spec635': {
+        for (final e in _spec635.entries) e.key.toString(): e.value.toJson()
+      },
+
+      'otherFindings': otherFindings,
+      'dentitionType': dentitionType,
+      'ageMin': ageMin,
+      'ageMax': ageMax,
+      'qualityCheckSignature': qualityCheckSignature,
+      'qualityCheckDate': qualityCheckDate?.toIso8601String(),
+
+      'upperJawWithTeeth': upperJawWithTeeth,
+      'lowerJawWithTeeth': lowerJawWithTeeth,
+      'upperJawWithoutTeeth': upperJawWithoutTeeth,
+      'lowerJawWithoutTeeth': lowerJawWithoutTeeth,
+      'fragments': fragments,
+      'teethOnly': teethOnly,
+      'otherMaterials': otherMaterials,
+
+      'paDigital': paDigital,
+      'paNonDigital': paNonDigital,
+      'bwDigital': bwDigital,
+      'bwNonDigital': bwNonDigital,
+      'opgDigital': opgDigital,
+      'opgNonDigital': opgNonDigital,
+      'ctDigital': ctDigital,
+      'ctNonDigital': ctNonDigital,
+      'otherDigital': otherDigital,
+      'otherNonDigital': otherNonDigital,
+      'photographsDigital': photographsDigital,
+      'photographsNonDigital': photographsNonDigital,
+      'otherRadiographs': otherRadiographs,
+      'uploadedFiles': uploadedFiles,
+
+      'conditionOfJaws': conditionOfJaws,
+      'otherDetails': otherDetails,
+    };
   }
 
-  // ----------------- Reset / Save -----------------
-  void resetAll() {
+  void fromMap(Map<String, dynamic> m) {
+    // 기본값 처리 유틸
+    T _get<T>(String k, T fallback) {
+      final v = m[k];
+      return (v is T) ? v : fallback;
+    }
+
+    recordType = _get<String>('recordType', 'PM');
+    amNumber = _get<String>('amNumber', '');
+    pmNumber = _get<String>('pmNumber', '');
+    placeOfDisaster = _get<String>('placeOfDisaster', '');
+    natureOfDisaster = _get<String>('natureOfDisaster', '');
+    final dateStr = m['dateOfDisaster'] as String?;
+    dateOfDisaster = (dateStr == null || dateStr.isEmpty) ? null : DateTime.tryParse(dateStr);
+    gender = _get<String>('gender', '');
+
+    // 하위 호환 fdiToothData
+    fdiToothData
+      ..clear()
+      ..addAll(((m['fdiToothData'] as Map?) ?? const {}).map(
+            (k, v) => MapEntry(int.parse(k.toString()), Map<String, dynamic>.from(v as Map)),
+      ));
+
+    // spec635
+    _spec635
+      ..clear()
+      ..addAll(((m['spec635'] as Map?) ?? const {}).map(
+            (k, v) => MapEntry(int.parse(k.toString()), SpecificData.fromJson(Map<String, dynamic>.from(v as Map))),
+      ));
+
+    // spans
+    _spans
+      ..clear()
+      ..addAll(((m['spans'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((e) => DentalSpan.fromJson(e.map((k, v) => MapEntry(k.toString(), v)))));
+
+    otherFindings = _get<String>('otherFindings', '');
+    dentitionType = _get<String>('dentitionType', '');
+    ageMin = m['ageMin'] is int ? m['ageMin'] as int : null;
+    ageMax = m['ageMax'] is int ? m['ageMax'] as int : null;
+    qualityCheckSignature = _get<String>('qualityCheckSignature', '');
+    final qDateStr = m['qualityCheckDate'] as String?;
+    qualityCheckDate = (qDateStr == null || qDateStr.isEmpty) ? null : DateTime.tryParse(qDateStr);
+
+    upperJawWithTeeth    = _get<bool>('upperJawWithTeeth', false);
+    lowerJawWithTeeth    = _get<bool>('lowerJawWithTeeth', false);
+    upperJawWithoutTeeth = _get<bool>('upperJawWithoutTeeth', false);
+    lowerJawWithoutTeeth = _get<bool>('lowerJawWithoutTeeth', false);
+    fragments            = _get<bool>('fragments', false);
+    teethOnly            = _get<String>('teethOnly', '');
+    otherMaterials       = _get<String>('otherMaterials', '');
+
+    paDigital       = _get<bool>('paDigital', false);
+    paNonDigital    = _get<bool>('paNonDigital', false);
+    bwDigital       = _get<bool>('bwDigital', false);
+    bwNonDigital    = _get<bool>('bwNonDigital', false);
+    opgDigital      = _get<bool>('opgDigital', false);
+    opgNonDigital   = _get<bool>('opgNonDigital', false);
+    ctDigital       = _get<bool>('ctDigital', false);
+    ctNonDigital    = _get<bool>('ctNonDigital', false);
+    otherDigital    = _get<bool>('otherDigital', false);
+    otherNonDigital = _get<bool>('otherNonDigital', false);
+    photographsDigital    = _get<bool>('photographsDigital', false);
+    photographsNonDigital = _get<bool>('photographsNonDigital', false);
+    otherRadiographs      = _get<String>('otherRadiographs', '');
+    uploadedFiles         = List<String>.from((m['uploadedFiles'] as List?) ?? const []);
+
+    conditionOfJaws = _get<String>('conditionOfJaws', '');
+    otherDetails    = _get<String>('otherDetails', '');
+
+    _validateSpanConflicts();
+  }
+
+  Future<void> hydrate() async {
+    final data = LocalStore.loadDentalState();
+    if (data != null) {
+      _withoutAutosave(() {
+        fromMap(data);
+        super.notifyListeners(); // ← 여기서는 저장 안 함
+      });
+    }
+  }
+
+  Future<void> resetAll() async {
+    _withoutAutosave(() {
     recordType = 'PM';
     amNumber = '';
     pmNumber = '';
 
     fdiToothData.clear();
     _selectedSurfaces.clear();
-    spans.clear();
+    _spans.clear();
 
     otherFindings = "";
     dentitionType = "";
@@ -2719,64 +2887,50 @@ class DentalDataProvider extends ChangeNotifier {
 
     _spec635.clear();
 
-    notifyListeners();
+    super.notifyListeners(); // ← 저장 안 함
+    });
+    await LocalStore.resetDentalState();
   }
 
-  Map<String, dynamic> toMap() {
-    return {
-      'recordType': recordType,
-      'amNumber': amNumber,
-      'pmNumber': pmNumber,
-      'placeOfDisaster': placeForUi,
-      'natureOfDisaster': natureForUi,
-      'dateOfDisaster': dateOfDisaster?.toIso8601String(),
-      'gender': gender,
+  bool _autosavePaused = false;
 
-      // (하위 호환) 간단 문자열
-      'fdiToothData': {
-        for (final e in fdiToothData.entries) e.key.toString(): e.value
-      },
+  T _withoutAutosave<T>(T Function() run) {
+    final prev = _autosavePaused;
+    _autosavePaused = true;
+    try {
+      return run();
+    } finally {
+      _autosavePaused = prev;
+    }
+  }
 
-      // STEP 2: 스팬 직렬화
-      'spans': spans.map((e) => e.toJson()).toList(),
-      'spec635': exportSpecAll(),
+  @override
+  void notifyListeners() {
+    if (!_autosavePaused) {
+      _scheduleAutosave(); // ← 디바운스 로컬 저장
+    }
+    super.notifyListeners();
+  }
 
-      'otherFindings': otherFindings,
-      'dentitionType': dentitionType,
-      'ageMin': ageMin,
-      'ageMax': ageMax,
-      'qualityCheckSignature': qualityCheckSignature,
-      'qualityCheckDate': qualityCheckDate?.toIso8601String(),
-
-      'upperJawWithTeeth': upperJawWithTeeth,
-      'lowerJawWithTeeth': lowerJawWithTeeth,
-      'upperJawWithoutTeeth': upperJawWithoutTeeth,
-      'lowerJawWithoutTeeth': lowerJawWithoutTeeth,
-      'fragments': fragments,
-      'teethOnly': teethOnly,
-      'otherMaterials': otherMaterials,
-
-      'paDigital': paDigital,
-      'paNonDigital': paNonDigital,
-      'bwDigital': bwDigital,
-      'bwNonDigital': bwNonDigital,
-      'opgDigital': opgDigital,
-      'opgNonDigital': opgNonDigital,
-      'ctDigital': ctDigital,
-      'ctNonDigital': ctNonDigital,
-      'otherDigital': otherDigital,
-      'otherNonDigital': otherNonDigital,
-      'photographsDigital': photographsDigital,
-      'photographsNonDigital': photographsNonDigital,
-      'otherRadiographs': otherRadiographs,
-      'uploadedFiles': uploadedFiles,
-
-      'conditionOfJaws': conditionOfJaws,
-      'otherDetails': otherDetails,
-    };
+  void _validateSpanConflicts() {
+    final dent = <int>{};
+    final br = <int>{};
+    for (final sp in _spans) {
+      final t = sp.teeth;
+      if (sp.type == DentalSpanType.dentureOrtho) {
+        final clash = t.where(br.contains).toList();
+        if (clash.isNotEmpty) {
+          debugPrint('⚠️ 로드된 데이터에 Denture/Bridge 충돌 있음: ${clash.join(", ")}');
+        }
+        dent.addAll(t);
+      } else {
+        final clash = t.where(dent.contains).toList();
+        if (clash.isNotEmpty) {
+          debugPrint('⚠️ 로드된 데이터에 Bridge/Denture 충돌 있음: ${clash.join(", ")}');
+        }
+        br.addAll(t);
+      }
+    }
   }
 }
-
-
-
 

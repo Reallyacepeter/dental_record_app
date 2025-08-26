@@ -288,6 +288,60 @@ class FinalReviewScreen extends StatelessWidget {
                   Text("650: 품질 확인 - 서명: ${provider.qualityCheckSignature}, 날짜: ${provider.qualityCheckDate?.toLocal().toString().split(" ")[0] ?? "없음"}"),
                   const Divider(),
 
+                  // ===================== Odontogram Spans 요약 =====================
+                  const SizedBox(height: 12),
+                  const Text("🧩 Odontogram Spans", style: TextStyle(fontWeight: FontWeight.bold)),
+
+                  if (provider.spans.isEmpty)
+                    const Text("스팬 없음")
+                  else
+                    ...provider.spans.map((sp) => Card(
+                      margin: const EdgeInsets.only(top: 8),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Wrap(
+                          spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Chip(label: Text(sp.type.name)),
+                            if (sp.code != null && sp.code!.isNotEmpty)
+                              Chip(label: Text('code: ${sp.code}')),
+                            Chip(label: Text('teeth: ${(sp.teeth.toList()..sort()).join(", ")}')),
+                            if (sp.abutments.isNotEmpty)
+                              Chip(label: Text('abut: ${(sp.abutments.toList()..sort()).join(", ")}')),
+                            if (sp.pontics.isNotEmpty)
+                              Chip(label: Text('pontic: ${(sp.pontics.toList()..sort()).join(", ")}')),
+                          ],
+                        ),
+                      ),
+                    )),
+
+                  const Divider(),
+
+// ===================== 635 Specific 요약 =====================
+                  const Text("🧾 635 Specific 요약", style: TextStyle(fontWeight: FontWeight.bold)),
+
+                  Builder(builder: (context) {
+                    // provider에 있는 직렬화 스냅샷에서 치아 목록 얻기
+                    final specMap = (provider.toMap()['spec635'] as Map?)?.cast<String, dynamic>() ?? {};
+                    final lines = <Widget>[];
+
+                    // build635Line(fdi) 사용해서 사람 읽기 좋은 요약 생성
+                    for (final e in specMap.entries) {
+                      final fdi = int.tryParse(e.key);
+                      if (fdi == null) continue;
+                      final line = provider.build635Line(fdi).trim();
+                      if (line.isNotEmpty) {
+                        lines.add(Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text('Tooth $fdi · $line'),
+                        ));
+                      }
+                    }
+                    if (lines.isEmpty) return const Text('입력 없음');
+                    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: lines);
+                  }),
+                  const Divider(),
+
                   const Text("🦷 Materials Available", style: TextStyle(fontWeight: FontWeight.bold)),
                   Text("상악 (치아 있음): ${provider.upperJawWithTeeth}"),
                   Text("하악 (치아 있음): ${provider.lowerJawWithTeeth}"),

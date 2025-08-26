@@ -9,22 +9,32 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:dental_record_app/main.dart';
+import 'package:dental_record_app/providers/dental_data_provider.dart';
+import 'package:dental_record_app/services/local_store.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(MyApp());
+  TestWidgetsFlutterBinding.ensureInitialized();
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  setUpAll(() async {
+    // 테스트에서 파일 I/O 없이 로컬 상태 저장이 돌아가도록 메모리 모드로 초기화
+    // LocalStore.init(inMemory: true)가 없다면, 여러분 LocalStore에 동일 의미의 초기화 함수를 만들어 주세요.
+    await LocalStore.init(inMemory: true);
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+  testWidgets('App builds (smoke test)', (WidgetTester tester) async {
+    // Firestore 실시간 구독(incident lock) 끄기 → Firebase 초기화 없이도 테스트 가능
+    final dental = DentalDataProvider(listenIncidentLock: false);
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // (선택) 이전 저장본을 메모리에서 복원. 저장본이 없으면 그냥 빈 상태로 시작
+    await dental.hydrate();
+
+    // 필수: MyApp에 provider 주입
+    await tester.pumpWidget(MyApp(dental: dental));
+    await tester.pumpAndSettle();
+
+    // 가장 기본적인 빌드 확인
+    expect(find.byType(MaterialApp), findsOneWidget);
+    // 초기 라우트(SplashScreen 등)가 스캐폴드 기반이라면 최소 하나는 존재
+    expect(find.byType(Scaffold), findsWidgets);
   });
 }

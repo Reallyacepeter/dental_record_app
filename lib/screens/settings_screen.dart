@@ -774,7 +774,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ListTile(
             leading: const Icon(Icons.info_outline),
             title: const Text("앱 버전"),
-            subtitle: const Text("v1.0.0"),
+            subtitle: const Text("v1.2.1+6"),
             onTap: _handleVersionTileTap,
           ),
 

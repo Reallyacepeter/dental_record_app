@@ -216,6 +216,34 @@ import 'package:photo_view/photo_view.dart';
 //   }
 // }
 
+// 조회 화면용: 635 한 줄 요약 빌더(직렬화 JSON에서 바로 생성)
+const List<String> _surfKeys = ['O','M','D','L','B'];
+const List<String> _globalKeys = ['bite','crown','root','status','position'];
+
+String _build635LineFromJson(Map<String, dynamic> toothJson) {
+  final out = <String>[];
+
+  final surface = (toothJson['surface'] as Map?)?.cast<String, dynamic>() ?? const {};
+  for (final s in _surfKeys) {
+    final map = (surface[s] as Map?)?.cast<String, dynamic>() ?? const {};
+    final fillings = (map['fillings'] as List?)?.map((e) => e.toString()).toList() ?? const <String>[];
+    final perio    = (map['periodontium'] as List?)?.map((e) => e.toString()).toList() ?? const <String>[];
+    if (fillings.isNotEmpty) out.add('${fillings.join(",")}($s)');
+    if (perio.isNotEmpty)    out.add('${perio.join(",")}($s)');
+  }
+
+  final global = (toothJson['global'] as Map?)?.cast<String, dynamic>() ?? const {};
+  for (final g in _globalKeys) {
+    final list = (global[g] as List?)?.map((e) => e.toString()).toList() ?? const <String>[];
+    if (list.isNotEmpty) out.add(list.join(','));
+  }
+
+  final note = (toothJson['toothNote'] ?? '').toString().trim();
+  if (note.isNotEmpty) out.add('note:$note');
+
+  return out.join(' · ');
+}
+
 class FinalReviewScreenReadOnly extends StatelessWidget {
   final Map<String, dynamic> data;
 
@@ -283,6 +311,63 @@ class FinalReviewScreenReadOnly extends StatelessWidget {
             Text("기타 영상 자료: ${data['otherRadiographs'] ?? ''}"),
             const Divider(),
 
+            // ===================== Odontogram Spans 요약 =====================
+            const Text("🧩 Odontogram Spans", style: TextStyle(fontWeight: FontWeight.bold)),
+            Builder(builder: (context) {
+              final list = (data['spans'] as List?) ?? const [];
+              if (list.isEmpty) return const Text('스팬 없음');
+              return Column(
+                children: list.map((raw) {
+                  final sp = (raw as Map).map((k, v) => MapEntry(k.toString(), v));
+                  final type = (sp['type'] ?? '').toString();
+                  final code = (sp['code'] ?? '').toString();
+                  final teeth = ((sp['teeth'] as List?) ?? const []).map((e) => e.toString()).toList()..sort();
+                  final abut  = ((sp['abutments'] as List?) ?? const []).map((e) => e.toString()).toList()..sort();
+                  final pont  = ((sp['pontics'] as List?) ?? const []).map((e) => e.toString()).toList()..sort();
+
+                  return Card(
+                    margin: const EdgeInsets.only(top: 8),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Wrap(
+                        spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Chip(label: Text(type)),
+                          if (code.isNotEmpty) Chip(label: Text('code: $code')),
+                          Chip(label: Text('teeth: ${teeth.join(", ")}')),
+                          if (abut.isNotEmpty) Chip(label: Text('abut: ${abut.join(", ")}')),
+                          if (pont.isNotEmpty) Chip(label: Text('pontic: ${pont.join(", ")}')),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              );
+            }),
+            const Divider(),
+
+// ===================== 635 Specific 요약 =====================
+            const Text("🧾 635 Specific 요약", style: TextStyle(fontWeight: FontWeight.bold)),
+            Builder(builder: (context) {
+              final spec = (data['spec635'] as Map?)?.cast<String, dynamic>() ?? const {};
+              if (spec.isEmpty) return const Text('입력 없음');
+
+              final items = <Widget>[];
+              final keys = spec.keys.toList()..sort((a, b) => int.parse(a).compareTo(int.parse(b)));
+              for (final k in keys) {
+                final toothJson = (spec[k] as Map).map((kk, vv) => MapEntry(kk.toString(), vv));
+                final line = _build635LineFromJson(toothJson);
+                if (line.trim().isEmpty) continue;
+                items.add(Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text('Tooth $k · $line'),
+                ));
+              }
+              if (items.isEmpty) return const Text('입력 없음');
+              return Column(crossAxisAlignment: CrossAxisAlignment.start, children: items);
+            }),
+            const Divider(),
+
             const Text("📂 업로드된 파일", style: TextStyle(fontWeight: FontWeight.bold)),
             if (uploadedFiles.isEmpty)
               const Text("파일 없음")
@@ -340,4 +425,3 @@ class FinalReviewScreenReadOnly extends StatelessWidget {
     );
   }
 }
-

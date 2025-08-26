@@ -56,10 +56,14 @@
 // }
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 
 // 상태 관리 클래스
 import 'providers/dental_data_provider.dart';
+
+// LocalStore 추가
+import 'services/local_store.dart';
 
 // 스크린들
 import 'screens/splash_screen.dart';
@@ -78,15 +82,31 @@ import 'screens/settings_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
-  runApp(MyApp());
+
+  // Firestore incidentLock 읽기 대비(권한 문제 예방): 익명 로그인
+  if (FirebaseAuth.instance.currentUser == null) {
+    await FirebaseAuth.instance.signInAnonymously();
+  }
+
+  // 로컬 저장(Hive) 초기화
+  await LocalStore.init(inMemory: false);
+
+  // Provider 인스턴스 생성 후, 로컬 상태 복원(hydrate)
+  final dental = DentalDataProvider();
+  await dental.hydrate();  // LocalStore -> 메모리 로드
+
+  runApp(MyApp(dental: dental));  // 준비된 인스턴스를 주입
 }
 
 class MyApp extends StatelessWidget {
+  final DentalDataProvider dental;
+  const MyApp({super.key, required this.dental});
+
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => DentalDataProvider()),
+        ChangeNotifierProvider(create: (_) => dental),
         // 향후 RecordDataProvider, AuthProvider 등 추가 가능
       ],
       child: MaterialApp(
