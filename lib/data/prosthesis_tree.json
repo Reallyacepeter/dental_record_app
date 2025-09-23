@@ -1,0 +1,570 @@
+{
+  "Bite and occlusion": {
+    "CBT": {
+      "label": "crossbite",
+      "children": {}
+    },
+    "DBT": {
+      "label": "deep bite",
+      "children": {}
+    },
+    "DIO": {
+      "label": "distal occlusion",
+      "children": {}
+    },
+    "EBT": {
+      "label": "edge-to-edge bite",
+      "children": {}
+    },
+    "HBT": {
+      "label": "horisontal overlap",
+      "children": {}
+    },
+    "MEO": {
+      "label": "mesial occlusion",
+      "children": {}
+    },
+    "NOO": {
+      "label": "normal occlusion",
+      "children": {}
+    },
+    "OBT": {
+      "label": "open bite",
+      "children": {}
+    },
+    "RBT": {
+      "label": "reverse overbite",
+      "children": {}
+    },
+    "SBT": {
+      "label": "scissors bite",
+      "children": {}
+    }
+  },
+  "Bridge": {
+    "ABU": {
+      "label": "abutment tooth",
+      "children": {}
+    },
+    "UIB": {
+      "label": "unidentified bridge",
+      "children": {}
+    },
+    "EXTENSION BRIDGE": {
+      "label": "EXTENSION BRIDGE",
+      "children": {}
+    },
+    "MTB": {
+      "label": "metal bridge",
+      "children": {}
+    },
+    "GOB": {
+      "label": "gold bridge",
+      "children": {}
+    },
+    "MEB": {
+      "label": "metal bridge, non precious",
+      "children": {}
+    },
+    "TCB": {
+      "label": "tooth coloured bridge",
+      "children": {}
+    },
+    "ACB": {
+      "label": "acrylic bridge",
+      "children": {}
+    },
+    "ETB": {
+      "label": "etch bridge (resin bonded)",
+      "children": {}
+    },
+    "MCB": {
+      "label": "metal ceramic bridge",
+      "children": {}
+    },
+    "POB": {
+      "label": "porcelain bridge",
+      "children": {}
+    },
+    "TEB": {
+      "label": "temporary bridge",
+      "children": {}
+    },
+    "CAN": {
+      "label": "cantilever",
+      "children": {}
+    },
+    "PON": {
+      "label": "pontic",
+      "children": {}
+    },
+    "UIP": {
+      "label": "unidentified pontic",
+      "children": {}
+    },
+    "MTP": {
+      "label": "metal pontic",
+      "children": {}
+    },
+    "GOP": {
+      "label": "gold pontic",
+      "children": {}
+    },
+    "MEP": {
+      "label": "metal pontic, non precious",
+      "children": {}
+    },
+    "TCP": {
+      "label": "tooth coloured pontic",
+      "children": {}
+    },
+    "ACP": {
+      "label": "acrylic pontic",
+      "children": {}
+    },
+    "MCP": {
+      "label": "metal ceramic pontic",
+      "children": {}
+    },
+    "POP": {
+      "label": "porcelain pontic",
+      "children": {}
+    },
+    "TEP": {
+      "label": "temporary pontic",
+      "children": {}
+    }
+  },
+  "Crown pathology": {
+    "ABR": {
+      "label": "abrasion",
+      "children": {}
+    },
+    "ATT": {
+      "label": "attrition",
+      "children": {}
+    },
+    "ERO": {
+      "label": "erosion",
+      "children": {}
+    },
+    "FLU": {
+      "label": "fluorosis",
+      "children": {}
+    }
+  },
+  "Crowns": {
+    "UIC": {
+      "label": "unidentified crown",
+      "children": {}
+    },
+    "MTC": {
+      "label": "metal crown",
+      "children": {}
+    },
+    "AMC": {
+      "label": "amalgam crown",
+      "children": {}
+    },
+    "GOC": {
+      "label": "gold crown",
+      "children": {}
+    },
+    "MEC": {
+      "label": "crown, non-precious metal",
+      "children": {}
+    },
+    "SHC": {
+      "label": "shell crown",
+      "children": {}
+    },
+    "STC": {
+      "label": "steel crown",
+      "children": {}
+    },
+    "TCC": {
+      "label": "tooth coloured crown",
+      "children": {}
+    },
+    "ACC": {
+      "label": "acrylic crown",
+      "children": {}
+    },
+    "MCC": {
+      "label": "metal ceramic crown",
+      "children": {}
+    },
+    "POC": {
+      "label": "porcelain crown",
+      "children": {}
+    },
+    "VEC": {
+      "label": "veneer crown, full",
+      "children": {}
+    },
+    "TEC": {
+      "label": "temporary crown",
+      "children": {}
+    }
+  },
+  "Denture and Orthodontic Appl.": {
+    "CLA": {
+      "label": "clasp",
+      "children": {}
+    },
+    "EDE": {
+      "label": "edentulous (no denture)",
+      "children": {}
+    },
+    "FLD": {
+      "label": "full lower denture",
+      "children": {}
+    },
+    "FOA": {
+      "label": "fixed orthodontic applience",
+      "children": {}
+    },
+    "FUD": {
+      "label": "full upper denture",
+      "children": {}
+    },
+    "HLD": {
+      "label": "hybrid lower denture",
+      "children": {}
+    },
+    "HUD": {
+      "label": "hybrid upper denture",
+      "children": {}
+    },
+    "PLD": {
+      "label": "partial lower denture",
+      "children": {}
+    },
+    "PUD": {
+      "label": "partial upper denture",
+      "children": {}
+    },
+    "ROA": {
+      "label": "removable orthodontic applianc",
+      "children": {}
+    },
+    "SPL": {
+      "label": "splint",
+      "children": {}
+    }
+  },
+  "Fillings": {
+    "CAR": {
+      "label": "caries",
+      "children": {}
+    },
+    "ACA": {
+      "label": "acute caries",
+      "children": {}
+    },
+    "CCA": {
+      "label": "cronic caries",
+      "children": {}
+    },
+    "JEW": {
+      "label": "tooth jewellery",
+      "children": {}
+    },
+    "UIF": {
+      "label": "unidentified filling",
+      "children": {}
+    },
+    "CAV": {
+      "label": "cavity",
+      "children": {}
+    },
+    "MCF": {
+      "label": "metal filling",
+      "children": {}
+    },
+    "AMF": {
+      "label": "amalgam filling",
+      "children": {}
+    },
+    "GOF": {
+      "label": "gold filling",
+      "children": {}
+    },
+    "TCF": {
+      "label": "tooth coloured filling",
+      "children": {}
+    },
+    "CEF": {
+      "label": "ceramic filling",
+      "children": {}
+    },
+    "COF": {
+      "label": "composite filling",
+      "children": {}
+    },
+    "FIS": {
+      "label": "fissure sealing",
+      "children": {}
+    },
+    "GIF": {
+      "label": "glass ionomer filling",
+      "children": {}
+    },
+    "TEF": {
+      "label": "temporary filling",
+      "children": {}
+    },
+    "UII": {
+      "label": "unidentified inlay",
+      "children": {}
+    },
+    "INL": {
+      "label": "inlay",
+      "children": {}
+    },
+    "MTI": {
+      "label": "metal inlay",
+      "children": {}
+    },
+    "GOI": {
+      "label": "gold inlay",
+      "children": {}
+    },
+    "TCI": {
+      "label": "tooth coloured inlay",
+      "children": {}
+    },
+    "CEI": {
+      "label": "ceramic inlay",
+      "children": {}
+    },
+    "POI": {
+      "label": "porcelain inlay",
+      "children": {}
+    }
+  },
+  "Periodontium": {
+    "APP": {
+      "label": "apical periodontitis",
+      "children": {}
+    },
+    "CAL": {
+      "label": "calculus",
+      "children": {}
+    },
+    "MAP": {
+      "label": "marginal periodontitis",
+      "children": {}
+    },
+    "SMO": {
+      "label": "smoker",
+      "children": {}
+    },
+    "TAT": {
+      "label": "tatoo",
+      "children": {}
+    }
+  },
+  "Root": {
+    "ANOMALY": {
+      "label": "ANOMALY",
+      "children": {}
+    },
+    "DEX": {
+      "label": "denticle",
+      "children": {}
+    },
+    "DIX": {
+      "label": "dilaceration",
+      "children": {}
+    },
+    "FRX": {
+      "label": "root fracture",
+      "children": {}
+    },
+    "IFX": {
+      "label": "instrument fracture",
+      "children": {}
+    },
+    "IPX": {
+      "label": "implant",
+      "children": {}
+    },
+    "PPX": {
+      "label": "parapulpal pin",
+      "children": {}
+    },
+    "RFX": {
+      "label": "root filling",
+      "children": {}
+    },
+    "APX": {
+      "label": "apicectomy",
+      "children": {}
+    },
+    "COX": {
+      "label": "core",
+      "children": {}
+    },
+    "ODX": {
+      "label": "odontotomy",
+      "children": {}
+    },
+    "PEX": {
+      "label": "perforation",
+      "children": {}
+    },
+    "POX": {
+      "label": "post",
+      "children": {}
+    },
+    "REX": {
+      "label": "resorption",
+      "children": {}
+    }
+  },
+  "Status": {
+    "INVISIBLE": {
+      "label": "INVISIBLE",
+      "children": {}
+    },
+    "IMX": {
+      "label": "impacted tooth",
+      "children": {}
+    },
+    "NON": {
+      "label": "no information",
+      "children": {}
+    },
+    "RRX": {
+      "label": "residual root",
+      "children": {}
+    },
+    "UNE": {
+      "label": "unerupted",
+      "children": {}
+    },
+    "VISIBLE": {
+      "label": "VISIBLE",
+      "children": {}
+    },
+    "CFR": {
+      "label": "crown fracture",
+      "children": {}
+    },
+    "ERU": {
+      "label": "erupting",
+      "children": {}
+    },
+    "IMV": {
+      "label": "impacted tooth (visible)",
+      "children": {}
+    },
+    "NAD": {
+      "label": "No abnormality detected",
+      "children": {}
+    },
+    "INT": {
+      "label": "intact tooth",
+      "children": {}
+    },
+    "SOU": {
+      "label": "sound tooth",
+      "children": {}
+    },
+    "PRE": {
+      "label": "tooth present",
+      "children": {}
+    },
+    "REV": {
+      "label": "retained tooth (deciduous)",
+      "children": {}
+    },
+    "ROV": {
+      "label": "root (visible)",
+      "children": {}
+    },
+    "TRE": {
+      "label": "treated",
+      "children": {}
+    },
+    "MIS": {
+      "label": "missing tooth",
+      "children": {}
+    },
+    "MAM": {
+      "label": "missing ante mortem",
+      "children": {}
+    },
+    "APL": {
+      "label": "aplasia",
+      "children": {}
+    },
+    "EXT": {
+      "label": "extracted tooth",
+      "children": {}
+    },
+    "SOX": {
+      "label": "socket (mam)",
+      "children": {}
+    },
+    "MJA": {
+      "label": "missing jaw fragment",
+      "children": {}
+    },
+    "MPM": {
+      "label": "missing post mortem",
+      "children": {}
+    }
+  },
+  "Tooth position": {
+    "CRO": {
+      "label": "crowding",
+      "children": {}
+    },
+    "DIA": {
+      "label": "diastema",
+      "children": {}
+    },
+    "DIS": {
+      "label": "displacement (midline)",
+      "children": {}
+    },
+    "FVE": {
+      "label": "facial version",
+      "children": {}
+    },
+    "IPO": {
+      "label": "infraposition",
+      "children": {}
+    },
+    "LVE": {
+      "label": "linguoversion",
+      "children": {}
+    },
+    "MAL": {
+      "label": "malposition",
+      "children": {}
+    },
+    "MIG": {
+      "label": "migration",
+      "children": {}
+    },
+    "ROT": {
+      "label": "rotation",
+      "children": {}
+    },
+    "SPA": {
+      "label": "spacing",
+      "children": {}
+    },
+    "SPO": {
+      "label": "supraposition",
+      "children": {}
+    },
+    "TIL": {
+      "label": "tilted tooth",
+      "children": {}
+    }
+  }
+}

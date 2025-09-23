@@ -1,0 +1,54 @@
+# Misc
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IDE
+*.iml
+*.ipr
+*.iws
+.idea/
+#.vscode/   # 필요하면 주석 해제
+
+# Flutter/Dart/Pub
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+
+# Builds & local caches
+**/build/
+**/.cxx/
+**/.gradle/
+.android/
+.ios/
+android_backup/
+
+# Symbolication / Obfuscation
+app.*.symbols
+app.*.map.json
+
+# Android build variants
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Android local config & keystores
+/android/local.properties
+*.jks
+*.keystore
+
+# (선택) iOS CocoaPods
+ios/Pods/

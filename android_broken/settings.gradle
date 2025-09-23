@@ -1,0 +1,18 @@
+import java.util.Properties
+
+def localProperties = new Properties()
+def localPropsFile = new File(rootDir, "local.properties")
+if (localPropsFile.exists()) {
+    localPropsFile.withInputStream { stream -> localProperties.load(stream) }
+}
+
+def flutterRoot = localProperties.getProperty('flutter.sdk') ?: System.getenv('FLUTTER_ROOT')
+if (flutterRoot == null) {
+    throw new GradleException("Flutter SDK not found. Define flutter.sdk in android/local.properties or set FLUTTER_ROOT env var.")
+}
+
+// 이 줄이 매우 중요 — Flutter의 gradle 플러그인을 'pluginManagement'에 제공하도록 포함시킴
+includeBuild("${flutterRoot}/packages/flutter_tools/gradle")
+
+rootProject.name = 'dental_record_app'
+include ':app'

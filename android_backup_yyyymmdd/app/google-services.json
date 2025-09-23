@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "405053590629",
+    "project_id": "interpol-dental-form",
+    "storage_bucket": "interpol-dental-form.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:405053590629:android:b8188058106e2b2cce4a8c",
+        "android_client_info": {
+          "package_name": "com.example.dental_record_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDUC_7VqqTkm3TQKxqJEqWvp8riU-GYY2k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,24 @@
+// android/build.gradle (Groovy)
+buildscript {
+    ext.kotlin_version = '1.9.10' // 또는 1.9.20 (아래의 gradle/kotlin 매핑표를 보고 선택)
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.4.2'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:${kotlin_version}"
+        classpath 'com.google.gms:google-services:4.4.2' // 필요하면
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.layout.buildDirectory
+}
