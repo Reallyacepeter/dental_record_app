@@ -346,11 +346,13 @@
 import 'dart:async';
 import 'package:dental_record_app/providers/app_mode_provider.dart';
 import 'package:dental_record_app/services/network_status_service.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 // 상태 관리 클래스
 import 'debug_route_logger.dart';
+import 'firebase_options.dart';
 import 'providers/dental_data_provider.dart';
 
 // 스크린들
@@ -368,8 +370,17 @@ import 'screens/final_review_screen.dart';
 import 'screens/dental_data_screen.dart';
 import 'screens/settings_screen.dart';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  if (kIsWeb) {
+    // 웹은 미리 초기화(옵션은 네 거 그대로)
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.web);
+  } else {
+    await Firebase.initializeApp();
+  }
 
   // 네트워크 감시는 화면 뜬 뒤에 천천히 시작해도 됨.
   final network = NetworkStatus();
@@ -424,10 +435,13 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      // 👇 웹이면 바로 로그인으로 진입
+      initialRoute: kIsWeb ? '/login' : '/',
       debugShowCheckedModeBanner: false,
-      home: const SplashScreen(),
+      // home: const SplashScreen(),
       navigatorObservers: [RouteLogger()],   // 👈 추가
       routes: {
+        '/': (_) => const SplashScreen(),      // 네이티브는 스플래시로 시작
         '/initRetry': (_) => const InitRetryScreen(),
         '/login': (_) => LoginScreen(),
         '/recordSetup': (_) => const RecordSetupScreen(),

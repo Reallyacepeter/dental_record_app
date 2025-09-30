@@ -557,6 +557,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../providers/dental_data_provider.dart';
 
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import '../firebase_options.dart';
+import '../utils/auth_persistence.dart'; // 경로 맞게
+
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
   @override
@@ -564,14 +568,17 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> with WidgetsBindingObserver {
+
+  static final _kInitTimeout  = kIsWeb ? const Duration(seconds: 20) : const Duration(seconds: 10);
+  static final _kSignInTimeout = kIsWeb ? const Duration(seconds: 15) : const Duration(seconds: 8);
   static const _kLogoDelay = Duration(milliseconds: 200);
-  static const _kInitTimeout = Duration(seconds: 10);
-  static const _kSignInTimeout = Duration(seconds: 8);
   static const _kWatchdog = Duration(seconds: 12);
 
   bool _navigated = false;
   bool _booting = false;
   Timer? _watchdog;
+
+  String? _fatal;
 
   void _log(String m) => debugPrint('[SPLASH] $m');
 
@@ -604,19 +611,48 @@ class _SplashScreenState extends State<SplashScreen> with WidgetsBindingObserver
     _log('boot() start');
 
     _watchdog?.cancel();
-    _watchdog = Timer(_kWatchdog, () {
-      _log('WATCHDOG fired -> go /initRetry');
-      _goInitRetry();
-    });
+    if (!kIsWeb) {
+      _watchdog = Timer(_kWatchdog, () {
+        _log('WATCHDOG fired -> go /initRetry');
+        _goInitRetry();
+      });
+    } else {
+      _log('watchdog disabled on web');
+    }
 
     try {
       _log('logo delay');
       await Future.delayed(_kLogoDelay);
 
-      _log('SharedPreferences.getInstance()');
-      final prefs = await SharedPreferences.getInstance();
-      await _seedDefaults(prefs);
-      _log('seed defaults OK');
+      // try {
+      //   _log('SharedPreferences.getInstance()');
+      //   final prefs = await SharedPreferences.getInstance()
+      //       .timeout(const Duration(seconds: 3));
+      //   await _seedDefaults(prefs);
+      //   _log('seed defaults OK');
+      // } catch (e, st) {
+      //   if (kIsWeb) {
+      //     // iOS Safari/PWA에서 localStorage/IndexedDB가 막힌 경우 등
+      //     _log('SharedPreferences unavailable on web → skip seeding: $e');
+      //     // 웹에서는 무시하고 계속 진행
+      //   } else {
+      //     _log('SharedPreferences fatal on native → rethrow');
+      //     // 네이티브에서는 기존 로직대로 바깥 try/catch로 던져서 /initRetry로
+      //     rethrow;
+      //   }
+      // }
+
+      // 기존 try-catch 블록 지우고 아래로 교체
+      if (!kIsWeb) {
+        _log('SharedPreferences.getInstance()');
+        final prefs = await SharedPreferences.getInstance()
+            .timeout(const Duration(seconds: 3));
+        await _seedDefaults(prefs);
+        _log('seed defaults OK');
+      } else {
+        _log('Web → skip SharedPreferences seed (Safari/PWA storage issues)');
+      }
+
 
       _log('Firebase.apps.length=${Firebase.apps.length}');
       final firebaseReady = await _ensureFirebaseInitialized();
@@ -639,17 +675,27 @@ class _SplashScreenState extends State<SplashScreen> with WidgetsBindingObserver
         final route = user != null ? '/recordSetup' : '/login';
         _log('routing -> $route');
         _safeGo(route);
-        final dental = Provider.of<DentalDataProvider>(context, listen: false);
-        dental.startIncidentLockListener();
+        if (user != null) {
+          final dental = Provider.of<DentalDataProvider>(context, listen: false);
+          dental.startIncidentLockListener();
+        }
       } else {
         _log('firebase NOT ready -> offline route /recordSetup');
         _safeGo('/recordSetup');
       }
     } catch (e, st) {
+      _fatal = '$e';
       _log('FATAL: $e');
       _log('$st');
       if (!mounted) return;
-      _goInitRetry();
+      if (kIsWeb) {
+        // ✅ 웹은 initRetry 대신 로그인 화면으로 안전 폴백
+        _log('web fatal during boot → safeGo(/login)');
+        _safeGo('/login');
+        return;
+      } else {
+        _goInitRetry();
+      }
     } finally {
       _booting = false;
       _log('boot() end');
@@ -658,34 +704,48 @@ class _SplashScreenState extends State<SplashScreen> with WidgetsBindingObserver
 
   Future<bool> _ensureFirebaseInitialized() async {
     try {
-      if (Firebase.apps.isNotEmpty) {
-        _log('Firebase already initialized');
-        return true;
+      if (Firebase.apps.isNotEmpty) return true;
+
+      if (kIsWeb) {
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.web, // 웹만 옵션 사용
+        ).timeout(_kInitTimeout);
+      } else {
+        await Firebase.initializeApp().timeout(_kInitTimeout);
       }
-      _log('Firebase.initializeApp() start');
-      await Firebase.initializeApp().timeout(_kInitTimeout);
-      _log('Firebase.initializeApp() OK');
       return true;
     } catch (e, st) {
-      _log('Firebase init FAIL: $e');
-      _log('$st');
+      debugPrint('Firebase init FAIL: $e');
+      debugPrint('$st');
       return false;
     }
   }
 
+  // Future<void> _ensureAuthSession() async {
+  //   try {
+  //     final auth = FirebaseAuth.instance;
+  //     if (auth.currentUser == null) {
+  //       _log('signInAnonymously start');
+  //       await auth.signInAnonymously().timeout(_kSignInTimeout);
+  //       _log('signInAnonymously OK -> uid=${auth.currentUser?.uid}');
+  //     } else {
+  //       _log('already signed in -> uid=${auth.currentUser?.uid}');
+  //     }
+  //   } catch (e, st) {
+  //     _log('signIn FAIL: $e');
+  //     _log('$st');
+  //   }
+  // }
+
   Future<void> _ensureAuthSession() async {
     try {
-      final auth = FirebaseAuth.instance;
-      if (auth.currentUser == null) {
-        _log('signInAnonymously start');
-        await auth.signInAnonymously().timeout(_kSignInTimeout);
-        _log('signInAnonymously OK -> uid=${auth.currentUser?.uid}');
-      } else {
-        _log('already signed in -> uid=${auth.currentUser?.uid}');
-      }
+      // ✅ 웹 환경일 때만 내부에서 LOCAL/SESSION/NONE 고름
+      await setBestWebPersistence();
+
+      final user = FirebaseAuth.instance.currentUser;
+      _log('auth session -> ${user?.uid ?? "null"}');
     } catch (e, st) {
-      _log('signIn FAIL: $e');
-      _log('$st');
+      _log('auth session check FAIL: $e'); _log('$st');
     }
   }
 
@@ -725,8 +785,252 @@ class _SplashScreenState extends State<SplashScreen> with WidgetsBindingObserver
   @override
   Widget build(BuildContext context) {
     _log('build()');
-    return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
+    return Scaffold(
+      body: Stack(
+        children: [
+          const Center(child: CircularProgressIndicator()),
+          if (_fatal != null && kIsWeb)
+            Positioned(
+              left: 8, right: 8, bottom: 8,
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                color: Colors.black87,
+                child: Text('Boot error: $_fatal',
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
+
+// import 'dart:async';
+// import 'package:flutter/material.dart';
+// import 'package:firebase_core/firebase_core.dart';
+// import 'package:firebase_auth/firebase_auth.dart';
+// import 'package:provider/provider.dart';
+// import 'package:shared_preferences/shared_preferences.dart';
+// import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+//
+// import '../providers/dental_data_provider.dart';
+// import '../firebase_options.dart';
+//
+// class SplashScreen extends StatefulWidget {
+//   const SplashScreen({super.key});
+//   @override
+//   State<SplashScreen> createState() => _SplashScreenState();
+// }
+//
+// class _SplashScreenState extends State<SplashScreen> with WidgetsBindingObserver {
+//   static final _kInitTimeout  = kIsWeb ? const Duration(seconds: 20) : const Duration(seconds: 10);
+//   static final _kSignInTimeout = kIsWeb ? const Duration(seconds: 15) : const Duration(seconds: 8);
+//   static const _kLogoDelay = Duration(milliseconds: 200);
+//   static const _kWatchdog = Duration(seconds: 12);
+//
+//   bool _navigated = false;
+//   bool _booting = false;
+//   Timer? _watchdog;
+//   String? _fatal;
+//
+//   void _log(String m) => debugPrint('[SPLASH] $m');
+//
+//   @override
+//   void initState() {
+//     super.initState();
+//     WidgetsBinding.instance.addObserver(this);
+//     WidgetsBinding.instance.addPostFrameCallback((_) => _boot());
+//   }
+//
+//   @override
+//   void dispose() {
+//     WidgetsBinding.instance.removeObserver(this);
+//     _watchdog?.cancel();
+//     super.dispose();
+//   }
+//
+//   @override
+//   void didChangeAppLifecycleState(AppLifecycleState state) {
+//     if (!mounted || _navigated) return;
+//     if (state == AppLifecycleState.resumed && !_booting) {
+//       _log('resumed -> re-boot');
+//       _boot();
+//     }
+//   }
+//
+//   Future<void> _boot() async {
+//     if (!mounted || _navigated || _booting) return;
+//     _booting = true;
+//     _log('boot() start');
+//
+//     _watchdog?.cancel();
+//     if (!kIsWeb) {
+//       _watchdog = Timer(_kWatchdog, () {
+//         _log('WATCHDOG fired -> go /initRetry');
+//         _goInitRetry();
+//       });
+//     } else {
+//       _log('watchdog disabled on web');
+//     }
+//
+//     try {
+//       _log('logo delay');
+//       await Future.delayed(_kLogoDelay);
+//
+//       // 웹은 SharedPreferences 스킵 (사파리 PWA 저장소 이슈)
+//       if (!kIsWeb) {
+//         _log('SharedPreferences.getInstance()');
+//         final prefs = await SharedPreferences.getInstance()
+//             .timeout(const Duration(seconds: 3));
+//         await _seedDefaults(prefs);
+//         _log('seed defaults OK');
+//       } else {
+//         _log('Web → skip SharedPreferences seed');
+//       }
+//
+//       _log('Firebase.apps.length=${Firebase.apps.length}');
+//       final firebaseReady = await _ensureFirebaseInitialized();
+//       _log('Firebase ready=$firebaseReady, apps=${Firebase.apps.length}');
+//
+//       if (firebaseReady) {
+//         _log('ensureAuthSession() start');
+//         await _ensureAuthSession();
+//         final user = FirebaseAuth.instance.currentUser;
+//         _log('ensureAuthSession() done, user=${user?.uid ?? "null"}');
+//       }
+//
+//       if (!mounted || _navigated) {
+//         _log('already navigated or unmounted, return');
+//         return;
+//       }
+//
+//       if (firebaseReady) {
+//         final user = FirebaseAuth.instance.currentUser;
+//         final route = user != null ? '/recordSetup' : '/login';
+//         _log('routing -> $route');
+//         _safeGo(route);
+//         if (user != null) {
+//           final dental = Provider.of<DentalDataProvider>(context, listen: false);
+//           dental.startIncidentLockListener();
+//         }
+//       } else {
+//         _log('firebase NOT ready -> offline route /recordSetup');
+//         _safeGo('/recordSetup');
+//       }
+//     } catch (e, st) {
+//       _fatal = '$e';
+//       _log('FATAL: $e');
+//       _log('$st');
+//       if (!mounted) return;
+//       if (kIsWeb) {
+//         _log('web fatal during boot → safeGo(/login)');
+//         _safeGo('/login');
+//         return;
+//       } else {
+//         _goInitRetry();
+//       }
+//     } finally {
+//       _booting = false;
+//       _log('boot() end');
+//     }
+//   }
+//
+//   Future<bool> _ensureFirebaseInitialized() async {
+//     try {
+//       if (Firebase.apps.isNotEmpty) return true;
+//
+//       if (kIsWeb) {
+//         await Firebase.initializeApp(
+//           options: DefaultFirebaseOptions.web,
+//         ).timeout(_kInitTimeout);
+//       } else {
+//         await Firebase.initializeApp().timeout(_kInitTimeout);
+//       }
+//       return true;
+//     } catch (e, st) {
+//       debugPrint('Firebase init FAIL: $e');
+//       debugPrint('$st');
+//       return false;
+//     }
+//   }
+//
+//   Future<void> _ensureAuthSession() async {
+//     try {
+//       if (kIsWeb) {
+//         // iOS Safari/PWA에서 SESSION 실패 시 NONE으로 폴백
+//         try {
+//           await FirebaseAuth.instance.setPersistence(Persistence.SESSION);
+//         } catch (e) {
+//           _log('setPersistence SESSION failed → try NONE: $e');
+//           try {
+//             await FirebaseAuth.instance.setPersistence(Persistence.NONE);
+//           } catch (e2) {
+//             _log('setPersistence NONE also failed: $e2');
+//           }
+//         }
+//       }
+//       final user = FirebaseAuth.instance.currentUser;
+//       _log('auth session -> ${user?.uid ?? "null"}');
+//     } catch (e, st) {
+//       _log('auth session check FAIL: $e'); _log('$st');
+//     }
+//   }
+//
+//   Future<void> _seedDefaults(SharedPreferences prefs) async {
+//     const defaults = {
+//       'schemaVersion': 1,
+//       'recordType': 'PM',
+//       'amNumber': '',
+//       'pmNumber': '',
+//     };
+//     for (final entry in defaults.entries) {
+//       if (!prefs.containsKey(entry.key)) {
+//         final v = entry.value;
+//         if (v is int)    await prefs.setInt(entry.key, v);
+//         if (v is String) await prefs.setString(entry.key, v);
+//         if (v is bool)   await prefs.setBool(entry.key, v);
+//       }
+//     }
+//   }
+//
+//   void _goInitRetry() {
+//     _safeGo('/initRetry');
+//   }
+//
+//   void _safeGo(String route) {
+//     if (!mounted || _navigated) return;
+//     _navigated = true;
+//     _watchdog?.cancel();
+//     _log('Navigator.pushReplacementNamed($route)');
+//     scheduleMicrotask(() {
+//       if (!mounted) return;
+//       Navigator.of(context, rootNavigator: true).pushReplacementNamed(route);
+//     });
+//   }
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     _log('build()');
+//     return Scaffold(
+//       body: Stack(
+//         children: [
+//           const Center(child: CircularProgressIndicator()),
+//           if (_fatal != null && kIsWeb)
+//             Positioned(
+//               left: 8, right: 8, bottom: 8,
+//               child: Container(
+//                 padding: const EdgeInsets.all(8),
+//                 color: Colors.black87,
+//                 child: Text(
+//                   'Boot error: $_fatal',
+//                   style: const TextStyle(color: Colors.white, fontSize: 12),
+//                 ),
+//               ),
+//             ),
+//         ],
+//       ),
+//     );
+//   }
+// }
+

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../firebase_options.dart';
+
 class InitRetryScreen extends StatefulWidget {
   const InitRetryScreen({super.key});
 
@@ -27,18 +29,24 @@ class _InitRetryScreenState extends State<InitRetryScreen> {
     if (!mounted || _navigated) return;
     _attempt++;
     try {
-      await Firebase.initializeApp().timeout(const Duration(seconds: 2));
-      // auth 세션도 짧게 확인(있으면 바로 메인으로)
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        ).timeout(const Duration(seconds: 8));
+      }
+
       try {
-        await FirebaseAuth.instance.authStateChanges().first
-            .timeout(const Duration(seconds: 2));
-      } catch (_) {}
+        await FirebaseAuth.instance.signInAnonymously()
+            .timeout(const Duration(seconds: 5));
+      } catch (e) {
+        debugPrint('anon sign-in skip/err: $e');
+      }
 
       final user = FirebaseAuth.instance.currentUser;
       _safeGo(user != null ? '/recordSetup' : '/login');
-    } catch (_) {
-      // 아직 실패 — 화면은 유지하고 다음 주기 재시도
-      if (mounted) setState(() {}); // 시도 횟수 갱신 표시용
+    } catch (e) {
+      debugPrint('kickoff error: $e');
+      if (mounted) setState(() {});
     }
   }
 
