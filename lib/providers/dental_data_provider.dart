@@ -2437,16 +2437,22 @@ class DentalDataProvider extends ChangeNotifier {
         .collection('config')
         .doc('incidentLock');
 
-    _lockSub = _lockDoc!.snapshots().listen((snap) {
-      final d = snap.data();
-      if (d == null) return;
-      _withoutAutosave(() {
-        incidentLockEnabled = (d['enabled'] ?? false) as bool;
-        lockedPlace = (d['place'] ?? '') as String;
-        lockedNature = (d['nature'] ?? '') as String;
-        super.notifyListeners(); // 저장 안 함
-      });
-    });
+    _lockSub = _lockDoc!.snapshots().listen(
+          (snap) {
+        if (!snap.exists) return; // 초기엔 없을 수 있음
+        final d = snap.data();
+        if (d == null) return;
+        _withoutAutosave(() {
+          incidentLockEnabled = (d['enabled'] ?? false) as bool;
+          lockedPlace = (d['place'] ?? '') as String;
+          lockedNature = (d['nature'] ?? '') as String;
+          super.notifyListeners(); // 저장 안 함
+        });
+      },
+      onError: (e, [st]) {
+        debugPrint('incidentLock listen error: $e');
+      },
+    );
   }
 
   void stopIncidentLockListener() {
@@ -2459,26 +2465,31 @@ class DentalDataProvider extends ChangeNotifier {
     required String place,
     required String nature,
   }) async {
-    if (!_firebaseReady) {
-      throw StateError('Firebase is not initialized yet.');
-    }
-    if (enabled && (place.isEmpty || nature.isEmpty)) {
-      throw ArgumentError('Place/Nature required to enable incident lock.');
-    }
-    _lockDoc ??= FirebaseFirestore.instance
-        .collection('config')
-        .doc('incidentLock');
+    try {
+      if (!_firebaseReady) {
+        throw StateError('Firebase is not initialized yet.');
+      }
+      if (enabled && (place.isEmpty || nature.isEmpty)) {
+        throw ArgumentError('Place/Nature required to enable incident lock.');
+      }
+      _lockDoc ??= FirebaseFirestore.instance
+          .collection('config')
+          .doc('incidentLock');
 
-    await _lockDoc!.set(
-      {
-        'enabled': enabled,
-        'place': place,
-        'nature': nature,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'byUid': FirebaseAuth.instance.currentUser?.uid,
-      },
-      SetOptions(merge: true),
-    );
+      await _lockDoc!.set(
+        {
+          'enabled': enabled,
+          'place': place,
+          'nature': nature,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'byUid': FirebaseAuth.instance.currentUser?.uid,
+        },
+        SetOptions(merge: true),
+      );
+    } on FirebaseException catch (e) {
+      debugPrint('setIncidentLockRemote failed: ${e.code} ${e.message}');
+      rethrow;
+    }
   }
 
   @override
